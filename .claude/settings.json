@@ -1,6 +1,13 @@
 {
   "permissions": {
-    "allow": ["Bash(vp *)", "Bash(node *)"]
+    "allow": [
+      "Bash(vp *)",
+      "Bash(node *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(ls *)",
+      "Write(docs/learned/*)"
+    ]
   },
   "hooks": {
     "PostToolUse": [
@@ -10,6 +17,18 @@
           {
             "type": "command",
             "command": "npm run lint"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/soheieto/sandbox/auto-generate-code-from-linear && /Users/soheieto/.claude/local/claude --permission-mode acceptEdits -p 'use what-i-learned skills. And report your learning' --output-format text 2>/dev/null || true",
+            "async": true
           }
         ]
       }
