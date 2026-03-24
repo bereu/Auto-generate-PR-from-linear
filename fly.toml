@@ -1,0 +1,22 @@
+app = "bereu-claude-agent"
+primary_region = "nrt"
+
+[build]
+
+[env]
+NODE_ENV = "production"
+
+# HTTP サービスなし（常駐バックグラウンドプロセス）
+[http_service]
+internal_port = 3000
+auto_stop_machines = false # 止めない
+auto_start_machines = false
+
+[[vm]]
+size = "shared-cpu-1x"
+memory = "512mb"
+
+# workspace を永続ボリュームにマウント（再起動でもクローン済みが残る）
+[[mounts]]
+source = "repos_workspace"
+destination = "/app/workspace"

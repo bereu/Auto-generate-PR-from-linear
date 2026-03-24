@@ -8,7 +8,10 @@
     "preview": "vp preview",
     "prepare": "husky",
     "lint": "vp check --fix && vp lint && pnpm run lint:duplicates",
-    "lint:duplicates": "jscpd ./src"
+    "lint:duplicates": "jscpd ./src",
+    "eval": "promptfoo eval",
+    "deploy": "fly deploy",
+    "deploy:logs": "fly logs"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.81",
@@ -22,6 +25,7 @@
     "husky": "^9.1.7",
     "jscpd": "^4.0.8",
     "oxlint": "^1.56.0",
+    "promptfoo": "^0.121.2",
     "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "vite": "npm:@voidzero-dev/vite-plus-core@latest",

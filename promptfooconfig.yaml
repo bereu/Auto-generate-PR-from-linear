@@ -1,0 +1,41 @@
+description: "Agent prompt evaluation"
+
+prompts:
+  - prompts/task.md
+
+providers:
+  - id: anthropic:messages:claude-sonnet-4-6
+    config:
+      max_tokens: 1024
+
+defaultTest:
+  assert:
+    - type: llm-rubric
+      value: "Response includes a clear plan of action for the task"
+
+tests:
+  - description: "Simple bug fix task"
+    vars:
+      title: "Fix null pointer in login flow"
+      description: "Users see a crash when logging in with an empty email field"
+      workBranch: "feat/fix-login-null-AGT-001"
+      repoFullName: "acme/frontend"
+      prTitle: "feat: Fix null pointer in login flow [AGT-001]"
+      prBody: "## Linear タスク\nhttps://linear.app/acme/issue/AGT-001\n\n## 変更概要\nClaude Code による自動実装"
+    assert:
+      - type: contains
+        value: "null"
+      - type: llm-rubric
+        value: "The response addresses the specific bug described in the description"
+
+  - description: "New feature task"
+    vars:
+      title: "Add dark mode toggle"
+      description: "Add a toggle button in settings that switches the UI to dark mode"
+      workBranch: "feat/add-dark-mode-AGT-002"
+      repoFullName: "acme/frontend"
+      prTitle: "feat: Add dark mode toggle [AGT-002]"
+      prBody: "## Linear タスク\nhttps://linear.app/acme/issue/AGT-002\n\n## 変更概要\nClaude Code による自動実装"
+    assert:
+      - type: llm-rubric
+        value: "The response includes implementation steps for a dark mode toggle"

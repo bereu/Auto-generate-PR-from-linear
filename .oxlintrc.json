@@ -1,0 +1,53 @@
+{
+  "ignorePatterns": [
+    "dist",
+    "node_modules",
+    ".next",
+    "coverage",
+    "**/*.d.ts",
+    "**/*.config.*",
+    "vite.config.ts",
+    "tsconfig.json"
+  ],
+  "overrides": [
+    {
+      "files": ["**/*.spec.ts", "**/*.test.ts"],
+      "rules": {
+        "typescript/unbound-method": "off"
+      }
+    }
+  ],
+  "plugins": ["react", "typescript", "unicorn", "import", "oxc"],
+  "rules": {
+    "no-debugger": "error",
+    "no-console": "error",
+    "typescript/no-explicit-any": "error",
+    "import/no-default-export": "error",
+    "unicorn/filename-case": ["error", { "case": "kebabCase" }],
+    "oxc/branches-sharing-code": "error",
+    "no-duplicate-imports": "error",
+    "no-duplicate-case": "error",
+    "no-duplicate-keys": "error",
+    "typescript/adjacent-overload-signatures": "error",
+    "typescript/ban-ts-comment": "error",
+    "typescript/ban-types": "error",
+    "typescript/no-array-constructor": "error",
+    "typescript/no-duplicate-enum-values": "error",
+    "typescript/no-extra-non-null-assertion": "error",
+    "typescript/no-loss-of-precision": "error",
+    "typescript/no-misused-new": "error",
+    "typescript/no-namespace": "error",
+    "typescript/no-non-null-asserted-optional-chain": "error",
+    "typescript/no-this-alias": "error",
+    "typescript/no-unnecessary-type-constraint": "error",
+    "typescript/no-unsafe-declaration-merging": "error",
+    "typescript/no-var-requires": "error",
+    "typescript/prefer-as-const": "error",
+    "typescript/prefer-for-of": "error",
+    "typescript/prefer-switch": "error",
+    "typescript/prefer-function-type": "error",
+    "typescript/prefer-namespace-keyword": "error",
+    "typescript/triple-slash-reference": "error",
+    "typescript/unbound-method": "error"
+  }
+}
