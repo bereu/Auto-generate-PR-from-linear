@@ -27,6 +27,10 @@ function repoUrl(org: string, name: string): string {
   return `https://x-access-token:${token}@github.com/${org}/${name}.git`;
 }
 
+function repoSshUrl(org: string, name: string): string {
+  return `git@github.com:${org}/${name}.git`;
+}
+
 // ----------------------------------------
 // 同期結果の型
 // ----------------------------------------
@@ -59,6 +63,9 @@ export async function syncRepo(repo: RepoConfig, branch = DEFAULT_BRANCH): Promi
     fs.mkdirSync(WORKSPACE, { recursive: true });
     git(`clone --branch ${branch} ${repoUrl(org, name)} ${dest}`, WORKSPACE);
   }
+
+  // Switch remote to SSH so push and gh CLI operations use the SSH key
+  git(`remote set-url origin ${repoSshUrl(org, name)}`, dest);
 
   const sha = git(`rev-parse --short origin/${branch}`, dest);
   logger.info(`  ✅ ${name} @ origin/${branch} (${sha})`);

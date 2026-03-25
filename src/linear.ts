@@ -68,6 +68,15 @@ export async function updateIssueState(issueId: string, stateName: string): Prom
 }
 
 // ----------------------------------------
+// issue のタイトルを更新
+// ----------------------------------------
+export async function updateIssueTitle(issueId: string, title: string): Promise<void> {
+  const client = getClient();
+  await client.updateIssue(issueId, { title });
+  logger.info(`  📋 Linear: ${issueId} title → "${title}"`);
+}
+
+// ----------------------------------------
 // issue のテキストからリポジトリ名を推定
 // ----------------------------------------
 export function resolveRepo(issue: LinearIssue, repoNames: string[]): string {

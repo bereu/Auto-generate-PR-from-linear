@@ -26,4 +26,6 @@ COPY prompts/ ./prompts/
 
 RUN mkdir -p /app/workspace
 
-CMD ["pnpm", "exec", "tsx", "src/index.ts"]
+EXPOSE 3000
+
+CMD ["pnpm", "exec", "tsx", "src/main.ts"]

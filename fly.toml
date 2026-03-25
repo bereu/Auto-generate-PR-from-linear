@@ -6,17 +6,23 @@ primary_region = "nrt"
 [env]
 NODE_ENV = "production"
 
-# HTTP サービスなし（常駐バックグラウンドプロセス）
 [http_service]
 internal_port = 3000
-auto_stop_machines = false # 止めない
-auto_start_machines = false
+auto_stop_machines = false
+auto_start_machines = true
+min_machines_running = 1
+
+[[http_service.checks]]
+grace_period = "10s"
+interval = "30s"
+method = "GET"
+path = "/health"
+timeout = "5s"
 
 [[vm]]
 size = "shared-cpu-1x"
 memory = "512mb"
 
-# workspace を永続ボリュームにマウント（再起動でもクローン済みが残る）
 [[mounts]]
 source = "repos_workspace"
 destination = "/app/workspace"

@@ -1,13 +1,7 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { prepareWorktree, cleanupWorktree } from "@/sync-repos.js";
-import { fetchAgentIssues, updateIssueState, resolveRepo, type LinearIssue } from "@/linear.js";
-import {
-  REPOS,
-  POLL_INTERVAL,
-  MAX_TURNS,
-  LOG_TRUNCATE_LENGTH,
-  LINEAR_STATES,
-} from "@/repos.config.js";
+import { updateIssueState, updateIssueTitle, resolveRepo, type LinearIssue } from "@/linear.js";
+import { REPOS, MAX_TURNS, LOG_TRUNCATE_LENGTH, LINEAR_STATES } from "@/repos.config.js";
 import { loadPrompt } from "@/prompt-loader.js";
 import { logger } from "@/logger.js";
 
@@ -30,7 +24,16 @@ async function runClaude(
   repoFullName: string,
 ): Promise<ClaudeResultMessage> {
   const prTitle = `feat: ${issue.title} [${issue.id}]`;
-  const prBody = `## Linear タスク\n${issue.url}\n\n## 変更概要\nClaude Code による自動実装`;
+  const prBody = [
+    `## Linear Issue`,
+    issue.url,
+    ``,
+    `## Description`,
+    issue.description ?? "No description",
+    ``,
+    `## Changes`,
+    `Auto-implemented by Claude Code`,
+  ].join("\n");
 
   const prompt = loadPrompt("task", {
     title: issue.title,
@@ -84,6 +87,11 @@ async function runClaude(
 
   if (!result) throw new Error("Claude からレスポンスが返りませんでした");
   if (result.subtype === "error_max_turns") {
+    const suspendedTitle = issue.title.startsWith("[SUSPEND]")
+      ? issue.title
+      : `[SUSPEND] ${issue.title}`;
+    await updateIssueTitle(issue.id, suspendedTitle);
+    await updateIssueState(issue.id, LINEAR_STATES.suspended);
     throw new Error("max_turns に達しました");
   }
 
@@ -93,7 +101,7 @@ async function runClaude(
 // ----------------------------------------
 // 1タスクの実行（worktree で完全独立）
 // ----------------------------------------
-async function processIssue(issue: LinearIssue): Promise<void> {
+export async function processIssue(issue: LinearIssue): Promise<void> {
   const repoNames = REPOS.map((r) => r.name);
   const repoName = resolveRepo(issue, repoNames);
   const repo = REPOS.find((r) => r.name === repoName);
@@ -125,32 +133,5 @@ async function processIssue(issue: LinearIssue): Promise<void> {
   } finally {
     // 5. 成功・失敗どちらでも worktree を掃除
     cleanupWorktree(repoName, issue.id);
-  }
-}
-
-// ----------------------------------------
-// メインループ（1時間ごとにポーリング・タスクは並列実行）
-// ----------------------------------------
-export async function runAgentLoop(): Promise<void> {
-  while (true) {
-    logger.info(`\n[agent] ===== poll start (${new Date().toISOString()}) =====`);
-
-    try {
-      const issues = await fetchAgentIssues();
-      logger.info(`[agent] 対象タスク: ${issues.length}件`);
-
-      if (issues.length > 0) {
-        // worktree で独立しているので同一リポジトリでも並列実行可能
-        const results = await Promise.allSettled(issues.map(processIssue));
-        const ok = results.filter((r) => r.status === "fulfilled").length;
-        const ng = results.filter((r) => r.status === "rejected").length;
-        logger.info(`[agent] 完了: ${ok}件成功, ${ng}件失敗`);
-      }
-    } catch (err) {
-      logger.error(`[agent] ポーリングエラー: ${(err as Error).message}`);
-    }
-
-    logger.info(`[agent] 次回実行まで ${POLL_INTERVAL / 60000}分 待機...\n`);
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL));
   }
 }

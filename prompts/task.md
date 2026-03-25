@@ -21,4 +21,5 @@ When done, create a pull request with:
 2. Implement the required changes
 3. Run linting to ensure no errors
 4. Commit your changes with a descriptive message
-5. Push the branch and create the pull request
+5. Push the branch: `git push origin {{ workBranch }}`
+6. Create the pull request: `env -u GITHUB_TOKEN gh pr create ...` (unset GITHUB_TOKEN so gh uses its own stored credentials)
