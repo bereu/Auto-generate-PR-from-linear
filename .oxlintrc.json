@@ -15,6 +15,12 @@
       "rules": {
         "typescript/unbound-method": "off"
       }
+    },
+    {
+      "files": [".archgate/adrs/*.rules.ts"],
+      "rules": {
+        "typescript/triple-slash-reference": "off"
+      }
     }
   ],
   "plugins": ["react", "typescript", "unicorn", "import", "oxc"],
@@ -23,7 +29,12 @@
     "no-console": "error",
     "typescript/no-explicit-any": "error",
     "import/no-default-export": "error",
-    "unicorn/filename-case": ["error", { "case": "kebabCase" }],
+    "unicorn/filename-case": [
+      "error",
+      {
+        "case": "kebabCase"
+      }
+    ],
     "oxc/branches-sharing-code": "error",
     "no-duplicate-imports": "error",
     "no-duplicate-case": "error",

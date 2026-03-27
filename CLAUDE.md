@@ -2,8 +2,13 @@
 
 # Command
 
-- start: npm run start
-- lint: npm run lint
+    npm run start": "vp exec tsx --env-file=.env src/main.ts
+    npm run start:dev": "vp exec tsx --env-file=.env src/main.dev.ts
+    npm run dev:local": "vp exec tsx --env-file=.env src/main.local.ts
+    npm run preview": "vp preview
+    npm run prepare": "husky
+    npm run test": "vp test run
+    npm run lint": "vp check --fix && vp lint && pnpm run lint:duplicates
 
 ## Architecture & Decisions
 

@@ -6,7 +6,11 @@
       "Bash(npm *)",
       "Bash(npx *)",
       "Bash(ls *)",
-      "Write(docs/learned/*)"
+      "Write(docs/learned/*)",
+      "Bash(fly *)",
+      "Bash(linear-cli *)",
+      "Bash(gh pr:*)",
+      "Bash(gh archgate )"
     ]
   },
   "hooks": {
