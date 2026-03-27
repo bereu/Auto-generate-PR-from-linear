@@ -14,6 +14,8 @@ export const WORKTREE_BRANCH_PREFIX = "claude/issue-";
 export const REPO_NAME_PREFIX = "harness-";
 
 export const LINEAR_LABEL = "agent";
+export const ISSUE_EVENT_TYPE = "Issue";
+export const ISSUE_TRIGGER_ACTIONS = ["create", "update"] as const;
 export const LINEAR_STATES = {
   todo: "Todo",
   inProgress: "In Progress",

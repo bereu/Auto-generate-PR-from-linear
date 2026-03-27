@@ -7,8 +7,8 @@ import {
   WORKSPACE,
   WORKTREE_BRANCH_PREFIX,
   type RepoConfig,
-} from "@/repos.config.js";
-import { logger } from "@/logger.js";
+} from "@/repos.config.ts";
+import { logger } from "@/logger.ts";
 
 // ----------------------------------------
 // 内部ユーティリティ

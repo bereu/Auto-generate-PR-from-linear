@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { WebhookModule } from "./webhook/webhook.module.js";
+import { WebhookModule } from "./webhook/webhook.module.ts";
 
 @Module({
   imports: [WebhookModule],

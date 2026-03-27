@@ -69,23 +69,6 @@ export class TodosList {
     const found = this.list.find((todo) => todo.id().value() === id);
     return found || null;
   }
-
-  // Derivation: Add todo and return new list
-  add(todo: Todo): TodosList {
-    return new TodosList([...this.list, todo]);
-  }
-
-  // Derivation: Remove todo by id and return new list
-  remove(id: string): TodosList {
-    return new TodosList(this.list.filter((todo) => todo.id().value() !== id));
-  }
-
-  // Derivation: Update todo and return new list
-  update(updatedTodo: Todo): TodosList {
-    return new TodosList(
-      this.list.map((todo) => (todo.id().equals(updatedTodo.id()) ? updatedTodo : todo)),
-    );
-  }
 }
 ```
 
@@ -99,6 +82,7 @@ export class TodosList {
 ### Don't
 
 - Mutate the inner collection directly.
+- side effect function(add, update, remove)
 - Return raw arrays if business logic needs to be applied to the collection.
 
 ## Consequences

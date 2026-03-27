@@ -10,17 +10,19 @@ import {
   Inject,
 } from "@nestjs/common";
 import type { Request } from "express";
-import { WebhookService } from "./webhook.service.js";
+import { LINEAR_WEBHOOK_SIGNATURE_HEADER, LINEAR_WEBHOOK_TS_HEADER } from "@linear/sdk/webhooks";
+import { IssueEventService } from "./webhook.service.ts";
 
 @Controller()
 export class WebhookController {
-  constructor(@Inject(WebhookService) private readonly webhookService: WebhookService) {}
+  constructor(@Inject(IssueEventService) private readonly issueEventService: IssueEventService) {}
 
   @Post("webhook")
   @HttpCode(200)
-  receiveWebhook(
+  receiveLinearEvent(
     @Req() req: Request,
-    @Headers("linear-signature") signature: string,
+    @Headers(LINEAR_WEBHOOK_SIGNATURE_HEADER) signature: string,
+    @Headers(LINEAR_WEBHOOK_TS_HEADER) timestamp: string | undefined,
   ): { ok: boolean } {
     if (!signature) {
       throw new UnauthorizedException("Missing linear-signature header");
@@ -29,7 +31,7 @@ export class WebhookController {
     if (!rawBody) {
       throw new BadRequestException("Missing raw body");
     }
-    this.webhookService.handleWebhook(rawBody, signature);
+    this.issueEventService.receiveEvent(rawBody, signature, timestamp);
     return { ok: true };
   }
 

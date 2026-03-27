@@ -2,13 +2,10 @@
 
 # Command
 
-    npm run start": "vp exec tsx --env-file=.env src/main.ts
-    npm run start:dev": "vp exec tsx --env-file=.env src/main.dev.ts
-    npm run dev:local": "vp exec tsx --env-file=.env src/main.local.ts
-    npm run preview": "vp preview
-    npm run prepare": "husky
-    npm run test": "vp test run
-    npm run lint": "vp check --fix && vp lint && pnpm run lint:duplicates
+- npm run dev:local : Run local service for debug or QA
+- npm run test : run test
+- npm run lint : run lint
+- npm run deploy : deploy to fly.io
 
 ## Architecture & Decisions
 

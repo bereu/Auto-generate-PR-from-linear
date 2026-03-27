@@ -6,8 +6,6 @@ rules: true
 files: ["server/src/**"]
 ---
 
-# Lauer Architecture of BE
-
 ## Context
 
 To maintain high code quality, reduce the introduction of bugs, and ensure the codebase remains easy to modify as the project grows, we need a clear and consistent backend architectural pattern. This ADR defines the "Lauer" layered architecture, its access rules, and data structures.
@@ -27,7 +25,9 @@ sequenceDiagram
     participant Logic as 3. Query / 4. Command
     participant Repo as 5. Repository
     participant DS as 6. DataSource
+    participant Transfer as 7. Transfer
     participant DB as RDB
+    participant ES as ExternalService
 
     Client->>Ctrl: API Request
     Note over Ctrl: Map to Request DTO<br/>(API Validation)
@@ -43,10 +43,17 @@ sequenceDiagram
     Note over Logic: Execute Business Logic<br/>& Domain Validation
 
     Logic->>Repo: Passes Domain (Write) or Params (Read)
-    Repo->>DS: Passes DataModel or Params
-    DS->>DB: Accesses Database (RDB)
-    DB-->>DS: Returns Raw Data
-    DS-->>Repo: Returns DataModel
+    alt Access RDB
+        Repo->>DS: Passes DataModel or Params
+        DS->>DB: Accesses Database (RDB)
+        DB-->>DS: Returns Raw Data
+        DS-->>Repo: Returns DataModel
+    else Access External Service
+        Repo->>Transfer: Passes DataModel or Params
+        Transfer->>ES: Accesses External Service
+        ES-->>Transfer: Returns Raw Data
+        Transfer-->>Repo: Returns DataModel
+    end
     Note over Repo: Reconstructs Domain Object
     Repo-->>Logic: Returns Domain
 
@@ -91,8 +98,9 @@ sequenceDiagram
       ```
 3.  **Query** (Read-only): Data retrieval.
 4.  **Command** (Write-only): Data modification.
-5.  **Repository**: Aggregates data for domain-unit access. Accesses DataSource.
-6.  **DataSource**: 1:1 mapping to database tables.
+5.  **Repository**: Aggregates data for domain-unit access. Accesses DataSource and Transfer.
+6.  **DataSource**: 1:1 mapping to database tables (RDB).
+7.  **Transfer**: Wrapper for accessing external services (e.g., Firebase, third-party APIs). It is accessed by the Repository layer and handles the communication and data mapping to/from external services.
 
 ### Naming Convention
 
@@ -115,7 +123,7 @@ We prioritize naming that reflects **business logic** and domain language over t
 ### Don't
 
 - Perform business logic validation in the DTO or Controller.
-- Access the **DataSource** or **Repository** directly from the **Controller**.
+- Access the **DataSource**, **Repository**, or **Transfer** directly from the **Controller**.
 - Access the RDB from any layer other than **Repository** or **DataSource**.
 - Perform write operations within the **Query** layer.
 
@@ -126,10 +134,11 @@ We prioritize naming that reflects **business logic** and domain language over t
 - Stronger data integrity due to validation at both API (DTO) and Business (Domain) levels.
 - Code matches business language, improving clarity.
 - Small function responsibility leads to easier maintenance and fewer bugs.
+- Clear separation of concerns for internal RDB access and external service integration.
 
 ### Negative
 
-- Increased boilerplate code (mapping between DTO, Domain, and DataSource).
+- Increased boilerplate code (mapping between DTO, Domain, DataModel, and external service models).
 
 ### Risks
 

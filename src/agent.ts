@@ -1,14 +1,26 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { prepareWorktree, cleanupWorktree } from "@/sync-repos.js";
-import { updateIssueState, updateIssueTitle, resolveRepo, type LinearIssue } from "@/linear.js";
-import { REPOS, MAX_TURNS, LOG_TRUNCATE_LENGTH, LINEAR_STATES } from "@/repos.config.js";
-import { loadPrompt } from "@/prompt-loader.js";
-import { logger } from "@/logger.js";
+import { prepareWorktree, cleanupWorktree } from "@/sync-repos.ts";
+import { resolveRepo } from "@/linear.ts";
+import { IssueRepository } from "@/issue/repository/issue.repository.ts";
+import { LinearTransfer } from "@/issue/transfer/linear.transfer.ts";
+import { SuspendIssueCommand } from "@/issue/command/suspend-issue.command.ts";
+import { LinearIssue } from "@/issue/domain/linear-issue.ts";
+import { REPOS, MAX_TURNS, LOG_TRUNCATE_LENGTH } from "@/repos.config.ts";
+import { loadPrompt } from "@/prompt-loader.ts";
+import { logger } from "@/logger.ts";
 
 interface ClaudeResultMessage {
   type: "result";
   subtype?: string;
   usage?: { total_tokens?: number };
+}
+
+function createIssueRepository(): IssueRepository {
+  return new IssueRepository(new LinearTransfer());
+}
+
+function createSuspendIssueCommand(issueRepository: IssueRepository): SuspendIssueCommand {
+  return new SuspendIssueCommand(issueRepository);
 }
 
 // ----------------------------------------
@@ -22,22 +34,23 @@ async function runClaude(
   wtPath: string,
   workBranch: string,
   repoFullName: string,
+  suspendIssue: SuspendIssueCommand,
 ): Promise<ClaudeResultMessage> {
-  const prTitle = `feat: ${issue.title} [${issue.id}]`;
+  const prTitle = `feat: ${issue.title().value()} [${issue.id().value()}]`;
   const prBody = [
     `## Linear Issue`,
-    issue.url,
+    issue.url(),
     ``,
     `## Description`,
-    issue.description ?? "No description",
+    issue.description() ?? "No description",
     ``,
     `## Changes`,
     `Auto-implemented by Claude Code`,
   ].join("\n");
 
   const prompt = loadPrompt("task", {
-    title: issue.title,
-    description: issue.description ?? "詳細なし",
+    title: issue.title().value(),
+    description: issue.description() ?? "詳細なし",
     workBranch,
     repoFullName,
     prTitle: JSON.stringify(prTitle),
@@ -74,7 +87,7 @@ async function runClaude(
       for (const block of msg.message.content) {
         if (block.type === "tool_use") {
           logger.info(
-            `    🔧 [${issue.id}] ${block.name}: ${JSON.stringify(block.input).slice(0, LOG_TRUNCATE_LENGTH)}`,
+            `    🔧 [${issue.id().value()}] ${block.name}: ${JSON.stringify(block.input).slice(0, LOG_TRUNCATE_LENGTH)}`,
           );
         }
       }
@@ -87,11 +100,7 @@ async function runClaude(
 
   if (!result) throw new Error("Claude からレスポンスが返りませんでした");
   if (result.subtype === "error_max_turns") {
-    const suspendedTitle = issue.title.startsWith("[SUSPEND]")
-      ? issue.title
-      : `[SUSPEND] ${issue.title}`;
-    await updateIssueTitle(issue.id, suspendedTitle);
-    await updateIssueState(issue.id, LINEAR_STATES.suspended);
+    await suspendIssue.execute(issue);
     throw new Error("max_turns に達しました");
   }
 
@@ -102,36 +111,39 @@ async function runClaude(
 // 1タスクの実行（worktree で完全独立）
 // ----------------------------------------
 export async function processIssue(issue: LinearIssue): Promise<void> {
+  const issueRepository = createIssueRepository();
   const repoNames = REPOS.map((r) => r.name);
   const repoName = resolveRepo(issue, repoNames);
   const repo = REPOS.find((r) => r.name === repoName);
   if (!repo) throw new Error(`Unknown repo: ${repoName}`);
   const repoFull = `${repo.org}/${repo.name}`;
+  const issueId = issue.id().value();
 
-  logger.info(`\n▶ [${issue.id}] ${issue.title}`);
+  logger.info(`\n▶ [${issueId}] ${issue.title().value()}`);
   logger.info(`  📦 ${repoFull}`);
 
   // 1. Linear を "In Progress" に（重複実行防止）
-  await updateIssueState(issue.id, LINEAR_STATES.inProgress);
+  await issueRepository.startImplementation(issueId);
 
   // 2. worktree を作成（他タスクと独立した作業ディレクトリ）
-  const { wtPath, workBranch } = prepareWorktree(repoName, issue.id);
+  const { wtPath, workBranch } = prepareWorktree(repoName, issueId);
 
   try {
     // 3. Claude Code で実装 → push → PR 作成
-    const result = await runClaude(issue, wtPath, workBranch, repoFull);
+    const suspendIssue = createSuspendIssueCommand(issueRepository);
+    const result = await runClaude(issue, wtPath, workBranch, repoFull, suspendIssue);
     const usage = result.usage;
-    logger.info(`  🤖 [${issue.id}] Claude完了 (${usage?.total_tokens ?? "-"} tokens)`);
+    logger.info(`  🤖 [${issueId}] Claude完了 (${usage?.total_tokens ?? "-"} tokens)`);
 
     // 4. Linear を "In Review" に
-    await updateIssueState(issue.id, LINEAR_STATES.inReview);
-    logger.info(`  ✅ [${issue.id}] 完了`);
+    await issueRepository.markReadyForReview(issueId);
+    logger.info(`  ✅ [${issueId}] 完了`);
   } catch (err) {
-    logger.error(`  ❌ [${issue.id}] 失敗: ${(err as Error).message}`);
-    await updateIssueState(issue.id, LINEAR_STATES.todo).catch(() => {});
+    logger.error(`  ❌ [${issueId}] 失敗: ${(err as Error).message}`);
+    await issueRepository.resetToPending(issueId).catch(() => {});
     throw err;
   } finally {
     // 5. 成功・失敗どちらでも worktree を掃除
-    cleanupWorktree(repoName, issue.id);
+    cleanupWorktree(repoName, issueId);
   }
 }

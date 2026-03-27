@@ -3,9 +3,9 @@
  * Run: npm run start:dev  (loads .env automatically)
  */
 import "reflect-metadata";
-import { validateEnv, createApp } from "./create-app.js";
-import { logger } from "@/logger.js";
-import { WEBHOOK_PORT } from "@/repos.config.js";
+import { validateEnv, createApp } from "./create-app.ts";
+import { logger } from "@/logger.ts";
+import { WEBHOOK_PORT } from "@/repos.config.ts";
 
 async function bootstrap(): Promise<void> {
   validateEnv();
