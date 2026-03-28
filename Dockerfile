@@ -29,3 +29,4 @@ RUN mkdir -p /app/workspace
 EXPOSE 3000
 
 CMD ["pnpm", "exec", "tsx", "src/main.ts"]
+
