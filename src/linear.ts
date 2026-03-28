@@ -1,5 +1,5 @@
-import { REPO_NAME_PREFIX } from "@/repos.config.ts";
-import { LinearIssue } from "@/issue/domain/linear-issue.ts";
+import { REPO_NAME_PREFIX } from "@/repos.config";
+import { LinearIssue } from "@/domain/issue/linear-issue";
 
 export { LinearIssue };
 

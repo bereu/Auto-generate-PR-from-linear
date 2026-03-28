@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
-import { WebhookModule } from "./webhook/webhook.module.ts";
+import { LinearWebhookModule } from "@/linear-webhook/linear-webhook.module";
 
 @Module({
-  imports: [WebhookModule],
+  imports: [LinearWebhookModule],
 })
 export class AppModule {}

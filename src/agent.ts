@@ -1,13 +1,13 @@
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import { prepareWorktree, cleanupWorktree } from "@/sync-repos.ts";
-import { resolveRepo } from "@/linear.ts";
-import { IssueRepository } from "@/issue/repository/issue.repository.ts";
-import { LinearTransfer } from "@/issue/transfer/linear.transfer.ts";
-import { SuspendIssueCommand } from "@/issue/command/suspend-issue.command.ts";
-import { LinearIssue } from "@/issue/domain/linear-issue.ts";
-import { REPOS, MAX_TURNS, LOG_TRUNCATE_LENGTH } from "@/repos.config.ts";
-import { loadPrompt } from "@/prompt-loader.ts";
-import { logger } from "@/logger.ts";
+import { prepareWorktree, cleanupWorktree } from "@/sync-repos";
+import { resolveRepo } from "@/linear";
+import { IssueRepository } from "@/linear-webhook/repository/issue.repository";
+import { LinearTransfer } from "@/transfer/linear.transfer";
+import { SuspendIssueCommand } from "@/linear-webhook/command/suspend-issue.command";
+import { LinearIssue } from "@/domain/issue/linear-issue";
+import { REPOS, MAX_TURNS, LOG_TRUNCATE_LENGTH } from "@/repos.config";
+import { loadPrompt } from "@/util/prompt-loader";
+import { logger } from "@/logger";
 
 interface ClaudeResultMessage {
   type: "result";
@@ -100,7 +100,7 @@ async function runClaude(
 
   if (!result) throw new Error("Claude からレスポンスが返りませんでした");
   if (result.subtype === "error_max_turns") {
-    await suspendIssue.execute(issue);
+    await suspendIssue.suspend(issue);
     throw new Error("max_turns に達しました");
   }
 

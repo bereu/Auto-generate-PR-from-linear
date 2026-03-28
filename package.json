@@ -4,8 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "vp build",
     "start": "vp exec tsx --env-file=.env src/main.ts",
-    "start:dev": "vp exec tsx --env-file=.env src/main.dev.ts",
+    "dev:server": "vp exec tsx --env-file=.env src/main.dev.ts",
     "dev:local": "vp exec tsx --env-file=.env src/main.local.ts",
     "preview": "vp preview",
     "prepare": "husky",

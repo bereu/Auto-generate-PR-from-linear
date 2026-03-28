@@ -8,6 +8,11 @@ export default defineConfig({
       "@": "/src",
     },
   },
+  build: {
+    ssr: "src/main.ts",
+    outDir: "dist",
+    target: "node22",
+  },
   staged: {
     "*": "vp check --fix",
   },

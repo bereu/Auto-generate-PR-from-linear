@@ -1,8 +1,8 @@
 import "reflect-metadata";
-import { validateEnv, createApp } from "./create-app.ts";
-import { syncAllRepos } from "@/sync-repos.ts";
-import { logger } from "@/logger.ts";
-import { WEBHOOK_PORT } from "@/repos.config.ts";
+import { validateEnv, createApp } from "@/create-app";
+import { syncAllRepos } from "@/sync-repos";
+import { logger } from "@/logger";
+import { WEBHOOK_PORT } from "@/repos.config";
 
 async function bootstrap(): Promise<void> {
   logger.info("🚀 Claude Linear Agent starting...");

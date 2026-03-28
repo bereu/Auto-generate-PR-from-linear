@@ -1,7 +1,7 @@
 import { NestFactory } from "@nestjs/core";
 import { json, type Request } from "express";
-import { AppModule } from "./app.module.ts";
-import { logger } from "@/logger.ts";
+import { AppModule } from "@/app.module";
+import { logger } from "@/logger";
 
 export function validateEnv(): void {
   const required = [
