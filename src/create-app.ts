@@ -9,6 +9,8 @@ export function validateEnv(): void {
     "LINEAR_API_KEY",
     "ANTHROPIC_API_KEY",
     "LINEAR_WEBHOOK_SECRET",
+    "SLACK_BOT_TOKEN",
+    "SLACK_SIGNING_SECRET",
   ] as const;
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length > 0) {

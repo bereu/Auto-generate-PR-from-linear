@@ -10,7 +10,10 @@
       "Bash(fly *)",
       "Bash(linear-cli *)",
       "Bash(gh pr:*)",
-      "Bash(gh archgate )"
+      "Bash(gh archgate )",
+      "Bash(git * )",
+      "Bash(cat * )",
+      "Bash(pnpm *)"
     ]
   },
   "hooks": {

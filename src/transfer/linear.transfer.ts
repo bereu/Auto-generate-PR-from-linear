@@ -61,4 +61,32 @@ export class LinearTransfer {
     await this.client().updateIssue(issueId, { title });
     logger.info(`  📋 Linear: ${issueId} title → "${title}"`);
   }
+
+  async createIssue(params: {
+    title: string;
+    description: string;
+    labelNames: string[];
+  }): Promise<{ url: string }> {
+    const client = this.client();
+    const teamsConnection = await client.teams();
+    const team = teamsConnection.nodes[0];
+    if (!team) throw new Error("No Linear team found in workspace");
+
+    const labelsConnection = await team.labels();
+    const labelIds = labelsConnection.nodes
+      .filter((l) => params.labelNames.includes(l.name))
+      .map((l) => l.id);
+
+    const result = await client.createIssue({
+      teamId: team.id,
+      title: params.title,
+      description: params.description,
+      labelIds,
+    });
+    const issue = await result.issue;
+    if (!issue) throw new Error("Linear issue creation failed");
+
+    logger.info(`  📋 Linear: created issue "${params.title}"`);
+    return { url: issue.url };
+  }
 }

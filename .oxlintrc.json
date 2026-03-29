@@ -25,6 +25,17 @@
   ],
   "plugins": ["react", "typescript", "unicorn", "import", "oxc"],
   "rules": {
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["./*", "../*"],
+            "message": "Use absolute import paths instead of relative ones"
+          }
+        ]
+      }
+    ],
     "no-debugger": "error",
     "no-console": "error",
     "typescript/no-explicit-any": "error",

@@ -37,6 +37,14 @@ env -u GITHUB_TOKEN gh pr create ...
 
 This must be in the **prompt**, not in the agent process's environment, because the sub-agent issues shell commands itself — it cannot modify its own inherited environment setup.
 
+**Remaining known issue (observed 2026-03-27):** Even with this instruction in the prompt, `gh pr create` still fails in practice. The sub-agent subprocess inherits `GITHUB_TOKEN` from the parent NestJS process and may not consistently apply `env -u GITHUB_TOKEN`. Prompt instructions alone are not reliable for controlling subprocess environment variables.
+
+**More reliable alternatives (in order of preference):**
+
+1. Remove `GITHUB_TOKEN` from the NestJS process env before spawning Claude Code (strip it from `process.env` in `src/agent.ts` before `spawn`).
+2. Configure a separate `GH_TOKEN` env var with `pull_requests:write` scope — `gh` prefers `GH_TOKEN` over `GITHUB_TOKEN`, so setting `GH_TOKEN` correctly and leaving `GITHUB_TOKEN` for Linear/clone calls is cleaner.
+3. Grant the existing PAT `pull_requests:write` scope so it works whether or not `env -u GITHUB_TOKEN` is applied.
+
 ### 3. `WORKSPACE` path must be set in `.env` before startup
 
 `repos.config.ts` reads:

@@ -11,22 +11,29 @@
     "preview": "vp preview",
     "prepare": "husky",
     "test": "vp test run",
-    "lint": "vp check --fix && vp lint && pnpm run lint:duplicates",
+    "lint": "vp check --fix && vp lint && vp build &&pnpm run lint:duplicates",
     "lint:duplicates": "jscpd ./src",
     "eval": "promptfoo eval",
     "deploy": "fly deploy",
     "deploy:logs": "fly logs"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.64",
     "@anthropic-ai/claude-agent-sdk": "^0.2.81",
+    "@chat-adapter/slack": "^4.23.0",
+    "@chat-adapter/state-memory": "^4.23.0",
+    "@chat-adapter/state-pg": "^4.23.0",
     "@linear/sdk": "^78.0.0",
     "@nestjs/common": "^11.1.17",
     "@nestjs/core": "^11.1.17",
     "@nestjs/platform-express": "^11.1.17",
+    "ai": "^6.0.141",
+    "chat": "^4.23.0",
     "express": "^5.2.1",
     "nunjucks": "^3.2.4",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

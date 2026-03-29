@@ -20,13 +20,15 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
-COPY tsconfig.json ./
+COPY tsconfig.json vite.config.ts oxlint.config.js .oxlintrc.json ./
 COPY src/ ./src/
 COPY prompts/ ./prompts/
+
+RUN pnpm run build
 
 RUN mkdir -p /app/workspace
 
 EXPOSE 3000
 
-CMD ["pnpm", "exec", "tsx", "src/main.ts"]
+CMD ["node", "dist/main.js"]
 
