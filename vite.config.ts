@@ -19,7 +19,7 @@ export default defineConfig({
   },
   plugins: [
     oxlintPlugin({
-      configFile: "oxlint.config.js",
+      configFile: ".oxlintrc.json",
     }),
   ],
   lint: {

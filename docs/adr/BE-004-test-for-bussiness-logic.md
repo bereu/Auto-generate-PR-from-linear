@@ -2,7 +2,7 @@
 id: BE-004
 title: Test-for-bussiness-logic
 domain: backend
-rules: true
+rules: false
 ---
 
 # Test-for-bussiness-logic

@@ -4,7 +4,12 @@ export default {
   rules: {
     "private-list-property": {
       description: "List Domain classes must have a private 'list' property.",
-      check: async (ctx) => {
+      check: async (ctx: {
+        scopedFiles: string | any[];
+        glob: (arg0: string) => any;
+        readFile: (arg0: any) => any;
+        report: { violation: (arg0: { message: string; file: any }) => void };
+      }) => {
         const files = ctx.scopedFiles.length > 0 ? ctx.scopedFiles : await ctx.glob("src/**/*.ts");
         for (const file of files) {
           const fileName = file.split("/").pop() || "";
@@ -22,7 +27,12 @@ export default {
     },
     "no-side-effect-methods": {
       description: "List Domain should not have side-effect methods like add, update, remove.",
-      check: async (ctx) => {
+      check: async (ctx: {
+        scopedFiles: string | any[];
+        glob: (arg0: string) => any;
+        readFile: (arg0: any) => any;
+        report: { violation: (arg0: { message: string; file: any; line: any }) => void };
+      }) => {
         const files = ctx.scopedFiles.length > 0 ? ctx.scopedFiles : await ctx.glob("src/**/*.ts");
         for (const file of files) {
           const fileName = file.split("/").pop() || "";
@@ -43,7 +53,12 @@ export default {
     },
     "return-new-instance": {
       description: "Operations that modify the collection must return a new instance.",
-      check: async (ctx) => {
+      check: async (ctx: {
+        scopedFiles: string | any[];
+        glob: (arg0: string) => any;
+        readFile: (arg0: any) => any;
+        report: { violation: (arg0: { message: string; file: any; line: any }) => void };
+      }) => {
         const files = ctx.scopedFiles.length > 0 ? ctx.scopedFiles : await ctx.glob("src/**/*.ts");
         for (const file of files) {
           const fileName = file.split("/").pop() || "";

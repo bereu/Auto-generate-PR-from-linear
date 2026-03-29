@@ -32,12 +32,13 @@ export default {
           if (file.endsWith(".test.ts") || file.endsWith(".spec.ts")) continue;
           if (file.includes("util/")) continue; // Utils might have low-level strings
           if (file.includes("constants/")) continue;
+          if (file.includes("docs/")) continue; // Rule files might contain example patterns
           if (file.endsWith(".config.ts")) continue;
 
           const content = await ctx.readFile(file);
-          // Look for string literals in comparisons
-          // We exclude common technical strings like "string", "object", "undefined"
-          const magicStringRegex = /===\s*"([^"]+)"/g;
+          // Look for string literals in comparisons (=== or !==)
+          // We exclude common technical strings and common patterns
+          const magicStringRegex = /(?:===|!==)\s*"([^"\n]+)"/g;
           let match;
           while ((match = magicStringRegex.exec(content)) !== null) {
             const value = match[1];
@@ -51,6 +52,8 @@ export default {
                 "symbol",
                 "bigint",
                 "function",
+                "fulfilled",
+                "rejected",
               ].includes(value)
             )
               continue;

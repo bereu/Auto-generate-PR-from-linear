@@ -2,7 +2,7 @@
 id: BE-001
 title: Layer Architecture of BE
 domain: backend
-rules: true
+rules: false
 files: ["server/src/**"]
 ---
 

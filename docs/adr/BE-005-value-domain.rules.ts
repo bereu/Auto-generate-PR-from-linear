@@ -7,6 +7,7 @@ export default {
       check: async (ctx) => {
         const files = ctx.scopedFiles.length > 0 ? ctx.scopedFiles : await ctx.glob("src/**/*.ts");
         for (const file of files) {
+          if (file.includes("docs/")) continue;
           const fileName = file.split("/").pop() || "";
           // Value domains are usually *Id.ts, *Status.ts, or follow the BE-005 ADR
           // We can check if the file content suggests it's a Value Domain or if filename matches common patterns
@@ -32,6 +33,7 @@ export default {
       check: async (ctx) => {
         const files = ctx.scopedFiles.length > 0 ? ctx.scopedFiles : await ctx.glob("src/**/*.ts");
         for (const file of files) {
+          if (file.includes("docs/")) continue;
           const fileName = file.split("/").pop() || "";
           if (
             fileName.toLowerCase().endsWith("id.ts") ||

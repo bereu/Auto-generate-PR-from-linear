@@ -27,9 +27,9 @@ export class Langsmith {
     logger.info(`[langsmith] Pulling prompt: ${promptName}`);
     try {
       // Note: In a real environment, you need LANGSMITH_API_KEY set.
-      const prompt = await (this._client as unknown as { pullPrompt: (n: string) => Promise<unknown> }).pullPrompt(
-        promptName,
-      );
+      const prompt = await (
+        this._client as unknown as { pullPrompt: (n: string) => Promise<unknown> }
+      ).pullPrompt(promptName);
 
       // LangChain prompts usually have multiple messages or a single template.
       // We'll extract the text content from the first message if it's a ChatPrompt, or use it directly.

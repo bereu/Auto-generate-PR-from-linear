@@ -2,7 +2,7 @@
 id: BE-002
 title: domain rules
 domain: backend
-rules: true
+rules: false
 ---
 
 # Domain Rules

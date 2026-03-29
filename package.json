@@ -11,7 +11,7 @@
     "preview": "vp preview",
     "prepare": "husky",
     "test": "vp test run",
-    "lint": "vp check --fix && vp lint && vp build &&pnpm run lint:duplicates",
+    "lint": "vp check --fix && vp lint && pnpm archgate check && vp build && pnpm run lint:duplicates",
     "lint:duplicates": "jscpd ./src",
     "eval": "promptfoo eval",
     "deploy": "fly deploy",
