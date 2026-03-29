@@ -7,7 +7,7 @@ import { SuspendIssueCommand } from "@/linear-webhook/command/suspend-issue.comm
 import { LinearIssue } from "@/domain/issue/linear-issue";
 import { REPOS, MAX_TURNS, LOG_TRUNCATE_LENGTH } from "@/repos.config";
 import { loadPrompt } from "@/util/prompt-loader";
-import { logger } from "@/logger";
+import { logger } from "@/util/logger";
 
 interface ClaudeResultMessage {
   type: "result";

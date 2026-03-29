@@ -8,7 +8,7 @@ import {
   WORKTREE_BRANCH_PREFIX,
   type RepoConfig,
 } from "@/repos.config";
-import { logger } from "@/logger";
+import { logger } from "@/util/logger";
 
 // ----------------------------------------
 // 内部ユーティリティ

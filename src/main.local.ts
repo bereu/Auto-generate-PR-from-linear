@@ -6,7 +6,7 @@
 import "reflect-metadata";
 import localtunnel from "localtunnel";
 import { validateEnv, createApp } from "@/create-app";
-import { logger } from "@/logger";
+import { logger } from "@/util/logger";
 import { WEBHOOK_PORT } from "@/repos.config";
 
 async function bootstrap(): Promise<void> {

@@ -7,7 +7,7 @@ import {
   ISSUE_EVENT_TYPE,
   ISSUE_TRIGGER_ACTIONS,
 } from "@/repos.config";
-import { logger } from "@/logger";
+import { logger } from "@/util/logger";
 
 export interface RawWebhookLabel {
   name: string;

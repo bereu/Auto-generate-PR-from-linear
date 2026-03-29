@@ -7,15 +7,9 @@
 - npm run lint : run lint
 - npm run deploy : deploy to fly.io
 
-## Architecture & Decisions
+# File index
 
-All architectural decisions are documented as ADRs (Architecture Decision Records) in `docs/adr/` (symlinked from `.archgate/adrs/`)
-
-## plan
-
-- we have information `docs/tasks`
-
-## step
+- `INDEX.md`
 
 When you implement feature. Please follow below steps.
 

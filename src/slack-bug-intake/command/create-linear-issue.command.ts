@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Inject } from "@nestjs/common";
 import { generateObject } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
@@ -17,7 +17,7 @@ const FormatSchema = z.object({
 
 @Injectable()
 export class CreateLinearIssueCommand {
-  constructor(private readonly linearTransfer: LinearTransfer) {}
+  constructor(@Inject(LinearTransfer) private readonly linearTransfer: LinearTransfer) {}
 
   async execute(recentMessages: Message[]): Promise<{ url: string }> {
     const messages = recentMessages.map((m) => ({

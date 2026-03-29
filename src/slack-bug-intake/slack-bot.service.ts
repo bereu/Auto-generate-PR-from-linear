@@ -1,4 +1,4 @@
-import { Injectable, type OnModuleInit } from "@nestjs/common";
+import { Injectable, Inject, type OnModuleInit } from "@nestjs/common";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { Chat, type Thread } from "chat";
 import { createSlackAdapter } from "@chat-adapter/slack";
@@ -16,8 +16,8 @@ export class SlackBotService implements OnModuleInit {
   private chat!: Chat;
 
   constructor(
-    private readonly evaluateBugReport: EvaluateBugReportCommand,
-    private readonly createLinearIssue: CreateLinearIssueCommand,
+    @Inject(EvaluateBugReportCommand) private readonly evaluateBugReport: EvaluateBugReportCommand,
+    @Inject(CreateLinearIssueCommand) private readonly createLinearIssue: CreateLinearIssueCommand,
   ) {}
 
   onModuleInit(): void {

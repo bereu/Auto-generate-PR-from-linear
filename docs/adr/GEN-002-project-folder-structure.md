@@ -22,6 +22,7 @@ The `src/` directory is structured to align directly with the defined architectu
 - **Transfer Layer**: Files are placed in `src/transfer/` (e.g., `src/transfer/linear.transfer.ts`).
 - **Domain Layer**: Core domain entities and value objects are found in `src/domain/<feature>/` (e.g., `src/domain/issue/linear-issue.ts`).
 - **Utility**: General helper functions are in `src/util/`.
+- **Constants Layer**: Files are placed in `src/constants/`. This directory is used to manage static values such as permission tables, error messages, etc.
 - **Testing**:
   - **Co-located Unit Tests**: Unit tests are typically placed alongside the code they test, using the `.test.ts` suffix (e.g., `src/domain/issue/linear-issue.test.ts`).
   - **Dedicated Test Folder**: The `src/test/` directory is reserved for broader tests such as integration tests, end-to-end tests, or shared test utilities that don't directly correspond to a single source file.

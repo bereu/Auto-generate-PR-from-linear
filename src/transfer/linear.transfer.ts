@@ -1,5 +1,6 @@
+import { Injectable } from "@nestjs/common";
 import { LinearClient } from "@linear/sdk";
-import { logger } from "@/logger";
+import { logger } from "@/util/logger";
 
 export interface RawLinearIssue {
   id: string;
@@ -9,6 +10,7 @@ export interface RawLinearIssue {
   labels: string[];
 }
 
+@Injectable()
 export class LinearTransfer {
   private _client: LinearClient | null = null;
 
