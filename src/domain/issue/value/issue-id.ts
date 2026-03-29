@@ -1,9 +1,11 @@
+import { DOMAIN_ERRORS } from "@/constants/message/error/domain.error";
+
 export class IssueId {
   private constructor(private readonly _value: string) {}
 
   static of(id: string): IssueId {
     if (!id) {
-      throw new Error("IssueId must be a non-empty string");
+      throw new Error(DOMAIN_ERRORS.issueIdEmpty);
     }
     return new IssueId(id);
   }

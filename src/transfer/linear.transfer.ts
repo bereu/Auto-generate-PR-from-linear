@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { LinearClient } from "@linear/sdk";
 import { logger } from "@/util/logger";
+import { SYSTEM_ERRORS } from "@/constants/message/error/system.error";
 
 export interface RawLinearIssue {
   id: string;
@@ -17,7 +18,7 @@ export class LinearTransfer {
   private client(): LinearClient {
     if (!this._client) {
       const apiKey = process.env.LINEAR_API_KEY;
-      if (!apiKey) throw new Error("LINEAR_API_KEY is not set");
+      if (!apiKey) throw new Error(SYSTEM_ERRORS.linearApiKeyNotSet);
       this._client = new LinearClient({ apiKey });
     }
     return this._client;
@@ -49,11 +50,11 @@ export class LinearTransfer {
     const client = this.client();
     const issue = await client.issue(issueId);
     const team = await issue.team;
-    if (!team) throw new Error(`Team not found for issue ${issueId}`);
+    if (!team) throw new Error(`${SYSTEM_ERRORS.teamNotFound} for issue ${issueId}`);
 
     const statesConnection = await team.states();
     const state = statesConnection.nodes.find((s) => s.name === stateName);
-    if (!state) throw new Error(`State "${stateName}" not found in team`);
+    if (!state) throw new Error(`${SYSTEM_ERRORS.stateNotFound} "${stateName}" not found in team`);
 
     await client.updateIssue(issueId, { stateId: state.id });
     logger.info(`  📋 Linear: ${issueId} → "${stateName}"`);
@@ -72,7 +73,7 @@ export class LinearTransfer {
     const client = this.client();
     const teamsConnection = await client.teams();
     const team = teamsConnection.nodes[0];
-    if (!team) throw new Error("No Linear team found in workspace");
+    if (!team) throw new Error(SYSTEM_ERRORS.noLinearTeamFound);
 
     const labelsConnection = await team.labels();
     const labelIds = labelsConnection.nodes
@@ -86,7 +87,7 @@ export class LinearTransfer {
       labelIds,
     });
     const issue = await result.issue;
-    if (!issue) throw new Error("Linear issue creation failed");
+    if (!issue) throw new Error(SYSTEM_ERRORS.linearIssueCreationFailed);
 
     logger.info(`  📋 Linear: created issue "${params.title}"`);
     return { url: issue.url };

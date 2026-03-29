@@ -25,7 +25,7 @@
       }
     }
   ],
-  "plugins": ["react", "typescript", "unicorn", "import", "oxc"],
+  "plugins": ["react", "typescript", "unicorn", "import", "oxc", "vitest", "promise", "jsdoc"],
   "rules": {
     "no-restricted-imports": [
       "error",

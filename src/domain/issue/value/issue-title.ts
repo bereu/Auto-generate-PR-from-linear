@@ -1,3 +1,5 @@
+import { DOMAIN_ERRORS } from "@/constants/message/error/domain.error";
+
 const SUSPEND_PREFIX = "[SUSPEND]";
 
 export class IssueTitle {
@@ -5,7 +7,7 @@ export class IssueTitle {
 
   static create(title: string): IssueTitle {
     if (!title) {
-      throw new Error("IssueTitle must be a non-empty string");
+      throw new Error(DOMAIN_ERRORS.issueTitleEmpty);
     }
     return new IssueTitle(title);
   }

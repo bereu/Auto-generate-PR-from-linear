@@ -8,6 +8,12 @@ import { LinearIssue } from "@/domain/issue/linear-issue";
 import { REPOS, MAX_TURNS, LOG_TRUNCATE_LENGTH } from "@/repos.config";
 import { loadPrompt } from "@/util/prompt-loader";
 import { logger } from "@/util/logger";
+import {
+  CLAUDE_MESSAGE_TYPES,
+  CLAUDE_CONTENT_TYPES,
+  CLAUDE_RESULT_SUBTYPES,
+} from "@/constants/agent.constants";
+import { SYSTEM_ERRORS } from "@/constants/message/error/system.error";
 
 interface ClaudeResultMessage {
   type: "result";
@@ -83,9 +89,9 @@ async function runClaude(
     },
   })) {
     // ツール使用状況をリアルタイムでログ出力
-    if (msg.type === "assistant") {
+    if (msg.type === CLAUDE_MESSAGE_TYPES.assistant) {
       for (const block of msg.message.content) {
-        if (block.type === "tool_use") {
+        if (block.type === CLAUDE_CONTENT_TYPES.toolUse) {
           logger.info(
             `    🔧 [${issue.id().value()}] ${block.name}: ${JSON.stringify(block.input).slice(0, LOG_TRUNCATE_LENGTH)}`,
           );
@@ -93,15 +99,15 @@ async function runClaude(
       }
     }
 
-    if (msg.type === "result") {
+    if (msg.type === CLAUDE_MESSAGE_TYPES.result) {
       result = msg as ClaudeResultMessage;
     }
   }
 
-  if (!result) throw new Error("Claude からレスポンスが返りませんでした");
-  if (result.subtype === "error_max_turns") {
+  if (!result) throw new Error(SYSTEM_ERRORS.claudeNoResponse);
+  if (result.subtype === CLAUDE_RESULT_SUBTYPES.errorMaxTurns) {
     await suspendIssue.suspend(issue);
-    throw new Error("max_turns に達しました");
+    throw new Error(SYSTEM_ERRORS.maxTurnsReached);
   }
 
   return result;

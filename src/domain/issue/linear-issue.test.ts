@@ -54,11 +54,15 @@ describe("LinearIssue", () => {
   });
 
   it("throws when id is empty", () => {
-    expect(() => LinearIssue.reconstruct("", "Fix bug", null, "http://url", [])).toThrow();
+    expect(() => LinearIssue.reconstruct("", "Fix bug", null, "http://url", [])).toThrow(
+      "IssueId must be a non-empty string",
+    );
   });
 
   it("throws when title is empty", () => {
-    expect(() => LinearIssue.reconstruct("id-1", "", null, "http://url", [])).toThrow();
+    expect(() => LinearIssue.reconstruct("id-1", "", null, "http://url", [])).toThrow(
+      "IssueTitle must be a non-empty string",
+    );
   });
 
   it("hasLabel returns true when label exists", () => {

@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from "vite-plus";
 import oxlintPlugin from "vite-plugin-oxlint";
 import oxlintRules from "./.oxlintrc.json" with { type: "json" };
@@ -23,6 +24,9 @@ export default defineConfig({
   ],
   lint: {
     ...(oxlintRules as object),
-    options: { typeAware: true },
+    options: { typeAware: true, typeCheck: true },
+  },
+  test: {
+    environment: "node",
   },
 });

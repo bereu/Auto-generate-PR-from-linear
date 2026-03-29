@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   FALLBACK_MESSAGE,
   MAX_CLARIFICATION_ROUNDS,
-} from "src/slack-bug-intake/slack-bug-intake.constants";
+} from "@/slack-bug-intake/slack-bug-intake.constants";
 import type { Message, Thread } from "chat";
 
 // Prevent Chat SDK from initializing during import
@@ -11,21 +11,7 @@ vi.mock("@chat-adapter/slack", () => ({ createSlackAdapter: vi.fn() }));
 vi.mock("@chat-adapter/state-memory", () => ({ createMemoryState: vi.fn() }));
 
 import { SlackBotService } from "@/slack-bug-intake/slack-bot.service";
-
-function makeMessage(text: string, isMe: boolean): Message {
-  return {
-    id: "msg-1",
-    threadId: "thread-1",
-    text,
-    author: { userId: "u1", userName: "user", fullName: "User", isBot: isMe, isMe },
-    metadata: { dateSent: new Date(), edited: false },
-    formatted: {} as Message["formatted"],
-    raw: {},
-    attachments: [],
-    links: [],
-    toJSON: vi.fn(),
-  } as unknown as Message;
-}
+import { makeTestMessage } from "@/test/message-helper";
 
 function makeThread(messages: Message[]): Thread {
   return {
@@ -52,7 +38,7 @@ describe("SlackBotService.handleIncoming", () => {
     mockEvaluate.execute.mockResolvedValue({ isComplete: true, clarifyingQuestion: null });
     mockCreateIssue.execute.mockResolvedValue({ url: "https://linear.app/issue/ENG-1" });
 
-    const thread = makeThread([makeMessage("Full bug report.", false)]);
+    const thread = makeThread([makeTestMessage("Full bug report.", false)]);
     await (service as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
       thread,
     );
@@ -70,7 +56,7 @@ describe("SlackBotService.handleIncoming", () => {
       clarifyingQuestion: "What OS are you using?",
     });
 
-    const thread = makeThread([makeMessage("The button is broken.", false)]);
+    const thread = makeThread([makeTestMessage("The button is broken.", false)]);
     await (service as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
       thread,
     );
@@ -88,9 +74,9 @@ describe("SlackBotService.handleIncoming", () => {
 
     // MAX_CLARIFICATION_ROUNDS bot messages already in history
     const botMessages = Array.from({ length: MAX_CLARIFICATION_ROUNDS }, (_, i) =>
-      makeMessage(`Question ${i + 1}`, true),
+      makeTestMessage(`Question ${i + 1}`, true),
     );
-    const thread = makeThread([makeMessage("Initial report", false), ...botMessages]);
+    const thread = makeThread([makeTestMessage("Initial report", false), ...botMessages]);
 
     await (service as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
       thread,
@@ -104,7 +90,7 @@ describe("SlackBotService.handleIncoming", () => {
   it("posts fallback and unsubscribes when clarifyingQuestion is null but report incomplete", async () => {
     mockEvaluate.execute.mockResolvedValue({ isComplete: false, clarifyingQuestion: null });
 
-    const thread = makeThread([makeMessage("Vague report.", false)]);
+    const thread = makeThread([makeTestMessage("Vague report.", false)]);
     await (service as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
       thread,
     );

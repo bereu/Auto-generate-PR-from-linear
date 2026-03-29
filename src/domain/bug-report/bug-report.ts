@@ -1,3 +1,5 @@
+import { DOMAIN_ERRORS } from "@/constants/message/error/domain.error";
+
 export class BugReport {
   private constructor(
     private readonly _title: string,
@@ -5,8 +7,8 @@ export class BugReport {
   ) {}
 
   static create(title: string, description: string): BugReport {
-    if (!title.trim()) throw new Error("BugReport title cannot be empty");
-    if (!description.trim()) throw new Error("BugReport description cannot be empty");
+    if (!title.trim()) throw new Error(DOMAIN_ERRORS.bugReportTitleEmpty);
+    if (!description.trim()) throw new Error(DOMAIN_ERRORS.bugReportDescriptionEmpty);
     return new BugReport(title, description);
   }
 

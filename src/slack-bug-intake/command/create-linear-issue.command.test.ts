@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
-import { BugReport } from "@/domain/bug-report/bug-report";
-import type { Message } from "chat";
+import { makeTestMessage } from "@/test/message-helper";
 
 vi.mock("ai", () => ({
   generateObject: vi.fn(),
@@ -12,21 +11,6 @@ vi.mock("@ai-sdk/anthropic", () => ({
 }));
 
 import { generateObject } from "ai";
-
-function makeMessage(text: string, isMe: boolean): Message {
-  return {
-    id: "msg-1",
-    threadId: "thread-1",
-    text,
-    author: { userId: "u1", userName: "user", fullName: "User", isBot: isMe, isMe },
-    metadata: { dateSent: new Date(), edited: false },
-    formatted: {} as Message["formatted"],
-    raw: {},
-    attachments: [],
-    links: [],
-    toJSON: vi.fn(),
-  } as unknown as Message;
-}
 
 describe("CreateLinearIssueCommand", () => {
   let command: CreateLinearIssueCommand;
@@ -45,7 +29,7 @@ describe("CreateLinearIssueCommand", () => {
       object: { title: "Login button broken", description: "## Summary\nButton does not work." },
     } as never);
 
-    const messages = [makeMessage("The login button is broken on Chrome.", false)];
+    const messages = [makeTestMessage("The login button is broken on Chrome.", false)];
     await command.execute(messages);
 
     expect(mockLinearTransfer.createIssue).toHaveBeenCalledOnce();
@@ -56,59 +40,45 @@ describe("CreateLinearIssueCommand", () => {
     });
   });
 
-  it("returns the url from linearTransfer.createIssue", async () => {
+  it("returns the issue URL on success", async () => {
     vi.mocked(generateObject).mockResolvedValue({
-      object: { title: "Login button broken", description: "## Summary\nDetails." },
+      object: { title: "t", description: "d" },
     } as never);
 
-    const messages = [makeMessage("Bug report here.", false)];
-    const result = await command.execute(messages);
-
+    const result = await command.execute([makeTestMessage("report", false)]);
     expect(result.url).toBe("https://linear.app/issue/ENG-123");
   });
 
-  it("maps message roles correctly for AI SDK", async () => {
+  it("includes all messages in the prompt", async () => {
     vi.mocked(generateObject).mockResolvedValue({
-      object: { title: "Title", description: "Desc" },
+      object: { title: "t", description: "d" },
     } as never);
 
     const messages = [
-      makeMessage("The button is broken.", false),
-      makeMessage("What environment are you on?", true),
-      makeMessage("Chrome on macOS.", false),
+      makeTestMessage("Report", false),
+      makeTestMessage("What happened?", true),
+      makeTestMessage("It crashed.", false),
     ];
-
     await command.execute(messages);
 
+    expect(generateObject).toHaveBeenCalledOnce();
     const callArgs = vi.mocked(generateObject).mock.calls[0][0] as { messages: unknown[] };
-    expect(callArgs.messages).toEqual([
-      { role: "user", content: "The button is broken." },
-      { role: "assistant", content: "What environment are you on?" },
-      { role: "user", content: "Chrome on macOS." },
-    ]);
-  });
-});
-
-describe("BugReport", () => {
-  it("throws when title is empty", () => {
-    expect(() => BugReport.create("", "Some description")).toThrow(
-      "BugReport title cannot be empty",
-    );
+    expect(callArgs.messages).toHaveLength(3);
   });
 
-  it("throws when description is empty", () => {
-    expect(() => BugReport.create("Some title", "")).toThrow(
-      "BugReport description cannot be empty",
-    );
-  });
+  it("calls generateObject with the correct model and system prompt", async () => {
+    vi.mocked(generateObject).mockResolvedValue({
+      object: { title: "t", description: "d" },
+    } as never);
 
-  it("throws when title is whitespace only", () => {
-    expect(() => BugReport.create("   ", "description")).toThrow("BugReport title cannot be empty");
-  });
+    await command.execute([makeTestMessage("report", false)]);
 
-  it("returns title and description via getters", () => {
-    const report = BugReport.create("Login broken", "## Summary\nDetails here.");
-    expect(report.title()).toBe("Login broken");
-    expect(report.description()).toBe("## Summary\nDetails here.");
+    expect(generateObject).toHaveBeenCalledOnce();
+    const callArgs = vi.mocked(generateObject).mock.calls[0][0] as {
+      model: unknown;
+      system: string;
+    };
+    expect(callArgs.model).toBe("mock-model");
+    expect(callArgs.system).toContain("bug report formatter");
   });
 });

@@ -79,7 +79,7 @@ export class SlackBotService implements OnModuleInit {
     const fetchRequest = new Request(url, {
       method: req.method,
       headers,
-      body: rawBody ?? null,
+      body: rawBody ? new Uint8Array(rawBody) : null,
     });
 
     const fetchResponse = await this.chat.webhooks.slack(fetchRequest);

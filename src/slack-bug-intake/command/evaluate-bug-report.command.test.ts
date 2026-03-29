@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { EvaluateBugReportCommand } from "@/slack-bug-intake/command/evaluate-bug-report.command";
-import type { Message } from "chat";
+import { makeTestMessage } from "@/test/message-helper";
 
 vi.mock("ai", () => ({
   generateObject: vi.fn(),
@@ -11,21 +11,6 @@ vi.mock("@ai-sdk/anthropic", () => ({
 }));
 
 import { generateObject } from "ai";
-
-function makeMessage(text: string, isMe: boolean): Message {
-  return {
-    id: "msg-1",
-    threadId: "thread-1",
-    text,
-    author: { userId: "u1", userName: "user", fullName: "User", isBot: isMe, isMe },
-    metadata: { dateSent: new Date(), edited: false },
-    formatted: {} as Message["formatted"],
-    raw: {},
-    attachments: [],
-    links: [],
-    toJSON: vi.fn(),
-  } as unknown as Message;
-}
 
 describe("EvaluateBugReportCommand", () => {
   let command: EvaluateBugReportCommand;
@@ -40,7 +25,7 @@ describe("EvaluateBugReportCommand", () => {
       object: { isComplete: true, clarifyingQuestion: null },
     } as never);
 
-    const messages = [makeMessage("Here is my complete bug report with all details.", false)];
+    const messages = [makeTestMessage("Here is my complete bug report with all details.", false)];
     const result = await command.execute(messages);
 
     expect(result.isComplete).toBe(true);
@@ -55,7 +40,7 @@ describe("EvaluateBugReportCommand", () => {
       },
     } as never);
 
-    const messages = [makeMessage("The button is broken.", false)];
+    const messages = [makeTestMessage("The button is broken.", false)];
     const result = await command.execute(messages);
 
     expect(result.isComplete).toBe(false);
@@ -70,7 +55,7 @@ describe("EvaluateBugReportCommand", () => {
       },
     } as never);
 
-    const messages = [makeMessage("Login fails when I click submit.", false)];
+    const messages = [makeTestMessage("Login fails when I click submit.", false)];
     const result = await command.execute(messages);
 
     expect(result.isComplete).toBe(false);
@@ -83,9 +68,9 @@ describe("EvaluateBugReportCommand", () => {
     } as never);
 
     const messages = [
-      makeMessage("The button is broken.", false),
-      makeMessage("Can you describe the expected behaviour?", true),
-      makeMessage("I expected it to submit the form.", false),
+      makeTestMessage("The button is broken.", false),
+      makeTestMessage("Can you describe the expected behaviour?", true),
+      makeTestMessage("I expected it to submit the form.", false),
     ];
 
     await command.execute(messages);
@@ -103,7 +88,7 @@ describe("EvaluateBugReportCommand", () => {
       object: { isComplete: true, clarifyingQuestion: null },
     } as never);
 
-    await command.execute([makeMessage("report", false)]);
+    await command.execute([makeTestMessage("report", false)]);
 
     expect(generateObject).toHaveBeenCalledOnce();
     const callArgs = vi.mocked(generateObject).mock.calls[0][0] as {

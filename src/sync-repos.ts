@@ -9,6 +9,7 @@ import {
   type RepoConfig,
 } from "@/repos.config";
 import { logger } from "@/util/logger";
+import { SYSTEM_ERRORS } from "@/constants/message/error/system.error";
 
 // ----------------------------------------
 // 内部ユーティリティ
@@ -84,7 +85,8 @@ export async function syncAllRepos(): Promise<SyncAllResult> {
   const synced: SyncResult[] = [];
   const failed: Array<{ name: string; error: string }> = [];
 
-  results.forEach((r, i) => {
+  const settlementResults = results as PromiseSettledResult<SyncResult>[];
+  settlementResults.forEach((r, i) => {
     if (r.status === "fulfilled") {
       synced.push(r.value);
     } else {
@@ -98,7 +100,7 @@ export async function syncAllRepos(): Promise<SyncAllResult> {
   logger.info("[sync] =====================================\n");
 
   if (synced.length === 0) {
-    throw new Error("全リポジトリの同期に失敗しました。起動を中断します。");
+    throw new Error(SYSTEM_ERRORS.syncAllFailed);
   }
 
   return { synced, failed };
@@ -121,7 +123,7 @@ export interface WorktreeResult {
 // ----------------------------------------
 export function prepareWorktree(repoName: string, issueId: string): WorktreeResult {
   const repo = REPOS.find((r) => r.name === repoName);
-  if (!repo) throw new Error(`Unknown repo: ${repoName}`);
+  if (!repo) throw new Error(`${SYSTEM_ERRORS.unknownRepo}: ${repoName}`);
 
   const mainRepo = path.join(WORKSPACE, repoName);
   const workBranch = `${WORKTREE_BRANCH_PREFIX}${issueId}`;
