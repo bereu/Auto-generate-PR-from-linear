@@ -8,7 +8,8 @@
     "**/*.config.*",
     "vite.config.ts",
     "tsconfig.json",
-    "docs/**"
+    "docs/**",
+    ".archgate/**"
   ],
   "overrides": [
     {
@@ -20,13 +21,11 @@
     {
       "files": [".archgate/adrs/*.rules.ts"],
       "rules": {
-        "typescript/triple-slash-reference": "off",
-        "import/no-default-export": "off",
-        "unicorn/filename-case": "off"
+        "typescript/triple-slash-reference": "off"
       }
     }
   ],
-  "plugins": ["react", "typescript", "unicorn", "import", "oxc", "vitest", "promise"],
+  "plugins": ["react", "typescript", "unicorn", "import", "oxc"],
   "rules": {
     "no-restricted-imports": [
       "error",
