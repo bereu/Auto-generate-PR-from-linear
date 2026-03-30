@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { EvaluateBugReportCommand } from "@/slack-bug-intake/command/evaluate-bug-report.command";
+import { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
 import { makeTestMessage } from "@/test/message-helper";
 
 vi.mock("ai", () => ({
@@ -12,11 +12,11 @@ vi.mock("@ai-sdk/anthropic", () => ({
 
 import { generateObject } from "ai";
 
-describe("EvaluateBugReportCommand", () => {
-  let command: EvaluateBugReportCommand;
+describe("EvaluateBugReportQuery", () => {
+  let query: EvaluateBugReportQuery;
 
   beforeEach(() => {
-    command = new EvaluateBugReportCommand();
+    query = new EvaluateBugReportQuery();
     vi.clearAllMocks();
   });
 
@@ -26,7 +26,7 @@ describe("EvaluateBugReportCommand", () => {
     } as never);
 
     const messages = [makeTestMessage("Here is my complete bug report with all details.", false)];
-    const result = await command.execute(messages);
+    const result = await query.execute(messages);
 
     expect(result.isComplete).toBe(true);
     expect(result.clarifyingQuestion).toBeNull();
@@ -41,7 +41,7 @@ describe("EvaluateBugReportCommand", () => {
     } as never);
 
     const messages = [makeTestMessage("The button is broken.", false)];
-    const result = await command.execute(messages);
+    const result = await query.execute(messages);
 
     expect(result.isComplete).toBe(false);
     expect(result.clarifyingQuestion).toBe("Could you provide the steps to reproduce this issue?");
@@ -56,7 +56,7 @@ describe("EvaluateBugReportCommand", () => {
     } as never);
 
     const messages = [makeTestMessage("Login fails when I click submit.", false)];
-    const result = await command.execute(messages);
+    const result = await query.execute(messages);
 
     expect(result.isComplete).toBe(false);
     expect(result.clarifyingQuestion).toBe("What OS and browser are you using?");
@@ -73,7 +73,7 @@ describe("EvaluateBugReportCommand", () => {
       makeTestMessage("I expected it to submit the form.", false),
     ];
 
-    await command.execute(messages);
+    await query.execute(messages);
 
     const callArgs = vi.mocked(generateObject).mock.calls[0][0] as { messages: unknown[] };
     expect(callArgs.messages).toEqual([
@@ -88,7 +88,7 @@ describe("EvaluateBugReportCommand", () => {
       object: { isComplete: true, clarifyingQuestion: null },
     } as never);
 
-    await command.execute([makeTestMessage("report", false)]);
+    await query.execute([makeTestMessage("report", false)]);
 
     expect(generateObject).toHaveBeenCalledOnce();
     const callArgs = vi.mocked(generateObject).mock.calls[0][0] as {

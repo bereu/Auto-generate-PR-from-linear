@@ -12,6 +12,7 @@
     "prepare": "husky",
     "test": "vp test run",
     "lint": "vp check --fix && vp lint && pnpm archgate check && vp build && pnpm run lint:duplicates",
+    "lint:json": "./.claude/script/lint-to-json.sh lint-results.json",
     "lint:duplicates": "jscpd ./src",
     "eval": "promptfoo eval",
     "deploy": "fly deploy",

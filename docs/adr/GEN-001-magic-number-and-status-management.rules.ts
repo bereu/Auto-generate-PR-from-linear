@@ -4,7 +4,12 @@ export default {
   rules: {
     "no-magic-numbers": {
       description: "Business logic should not use magic numbers (ADR GEN-001).",
-      check: async (ctx) => {
+      check: async (ctx: {
+        scopedFiles: string | any[];
+        glob: (arg0: string) => any;
+        readFile: (arg0: any) => any;
+        report: { violation: (arg0: { message: string; file: any; line: any }) => void };
+      }) => {
         const files = ctx.scopedFiles.length > 0 ? ctx.scopedFiles : await ctx.glob("src/**/*.ts");
         for (const file of files) {
           if (file.endsWith(".test.ts") || file.endsWith(".spec.ts")) continue;
@@ -26,7 +31,12 @@ export default {
     },
     "no-magic-strings": {
       description: "Status or configuration strings should not be hardcoded (ADR GEN-001).",
-      check: async (ctx) => {
+      check: async (ctx: {
+        scopedFiles: string | any[];
+        glob: (arg0: string) => any;
+        readFile: (arg0: any) => any;
+        report: { violation: (arg0: { message: string; file: any; line: any }) => void };
+      }) => {
         const files = ctx.scopedFiles.length > 0 ? ctx.scopedFiles : await ctx.glob("src/**/*.ts");
         for (const file of files) {
           if (file.endsWith(".test.ts") || file.endsWith(".spec.ts")) continue;

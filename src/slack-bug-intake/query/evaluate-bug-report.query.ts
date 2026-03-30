@@ -11,7 +11,7 @@ const EvaluationSchema = z.object({
 });
 
 @Injectable()
-export class EvaluateBugReportCommand {
+export class EvaluateBugReportQuery {
   async execute(recentMessages: Message[]): Promise<{
     isComplete: boolean;
     clarifyingQuestion: string | null;

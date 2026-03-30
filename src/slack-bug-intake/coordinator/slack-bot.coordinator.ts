@@ -3,7 +3,7 @@ import type { Request as ExpressRequest, Response as ExpressResponse } from "exp
 import { Chat, type Thread } from "chat";
 import { createSlackAdapter } from "@chat-adapter/slack";
 import { createMemoryState } from "@chat-adapter/state-memory";
-import { EvaluateBugReportCommand } from "@/slack-bug-intake/command/evaluate-bug-report.command";
+import { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
 import { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
 import {
   SLACK_BOT_USERNAME,
@@ -12,11 +12,11 @@ import {
 } from "@/slack-bug-intake/slack-bug-intake.constants";
 
 @Injectable()
-export class SlackBotService implements OnModuleInit {
+export class SlackBotCoordinator implements OnModuleInit {
   private chat!: Chat;
 
   constructor(
-    @Inject(EvaluateBugReportCommand) private readonly evaluateBugReport: EvaluateBugReportCommand,
+    @Inject(EvaluateBugReportQuery) private readonly evaluateBugReport: EvaluateBugReportQuery,
     @Inject(CreateLinearIssueCommand) private readonly createLinearIssue: CreateLinearIssueCommand,
   ) {}
 

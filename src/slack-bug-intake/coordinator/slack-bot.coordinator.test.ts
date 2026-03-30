@@ -10,7 +10,9 @@ vi.mock("chat", () => ({ Chat: vi.fn() }));
 vi.mock("@chat-adapter/slack", () => ({ createSlackAdapter: vi.fn() }));
 vi.mock("@chat-adapter/state-memory", () => ({ createMemoryState: vi.fn() }));
 
-import { SlackBotService } from "@/slack-bug-intake/slack-bot.service";
+import { SlackBotCoordinator } from "@/slack-bug-intake/coordinator/slack-bot.coordinator";
+import type { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
+import type { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
 import { makeTestMessage } from "@/test/message-helper";
 
 function makeThread(messages: Message[]): Thread {
@@ -23,23 +25,31 @@ function makeThread(messages: Message[]): Thread {
   } as unknown as Thread;
 }
 
-describe("SlackBotService.handleIncoming", () => {
-  let service: SlackBotService;
-  let mockEvaluate: { execute: ReturnType<typeof vi.fn> };
-  let mockCreateIssue: { execute: ReturnType<typeof vi.fn> };
+describe("SlackBotCoordinator.handleIncoming", () => {
+  let coordinator: SlackBotCoordinator;
+  let mockEvaluate: Partial<EvaluateBugReportQuery>;
+  let mockCreateIssue: Partial<CreateLinearIssueCommand>;
 
   beforeEach(() => {
     mockEvaluate = { execute: vi.fn() };
     mockCreateIssue = { execute: vi.fn() };
-    service = new SlackBotService(mockEvaluate as never, mockCreateIssue as never);
+    coordinator = new SlackBotCoordinator(
+      mockEvaluate as EvaluateBugReportQuery,
+      mockCreateIssue as CreateLinearIssueCommand,
+    );
   });
 
   it("creates issue and unsubscribes when report is complete", async () => {
-    mockEvaluate.execute.mockResolvedValue({ isComplete: true, clarifyingQuestion: null });
-    mockCreateIssue.execute.mockResolvedValue({ url: "https://linear.app/issue/ENG-1" });
+    vi.mocked(mockEvaluate.execute!).mockResolvedValue({
+      isComplete: true,
+      clarifyingQuestion: null,
+    });
+    vi.mocked(mockCreateIssue.execute!).mockResolvedValue({
+      url: "https://linear.app/issue/ENG-1",
+    });
 
     const thread = makeThread([makeTestMessage("Full bug report.", false)]);
-    await (service as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
+    await (coordinator as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
       thread,
     );
 
@@ -51,13 +61,13 @@ describe("SlackBotService.handleIncoming", () => {
   });
 
   it("posts clarifying question when report is incomplete and rounds < MAX", async () => {
-    mockEvaluate.execute.mockResolvedValue({
+    vi.mocked(mockEvaluate.execute!).mockResolvedValue({
       isComplete: false,
       clarifyingQuestion: "What OS are you using?",
     });
 
     const thread = makeThread([makeTestMessage("The button is broken.", false)]);
-    await (service as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
+    await (coordinator as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
       thread,
     );
 
@@ -67,7 +77,7 @@ describe("SlackBotService.handleIncoming", () => {
   });
 
   it("posts fallback message and unsubscribes after MAX_CLARIFICATION_ROUNDS", async () => {
-    mockEvaluate.execute.mockResolvedValue({
+    vi.mocked(mockEvaluate.execute!).mockResolvedValue({
       isComplete: false,
       clarifyingQuestion: "Still missing info.",
     });
@@ -78,7 +88,7 @@ describe("SlackBotService.handleIncoming", () => {
     );
     const thread = makeThread([makeTestMessage("Initial report", false), ...botMessages]);
 
-    await (service as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
+    await (coordinator as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
       thread,
     );
 
@@ -88,10 +98,13 @@ describe("SlackBotService.handleIncoming", () => {
   });
 
   it("posts fallback and unsubscribes when clarifyingQuestion is null but report incomplete", async () => {
-    mockEvaluate.execute.mockResolvedValue({ isComplete: false, clarifyingQuestion: null });
+    vi.mocked(mockEvaluate.execute!).mockResolvedValue({
+      isComplete: false,
+      clarifyingQuestion: null,
+    });
 
     const thread = makeThread([makeTestMessage("Vague report.", false)]);
-    await (service as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
+    await (coordinator as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
       thread,
     );
 

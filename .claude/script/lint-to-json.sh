@@ -9,7 +9,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${ROOT_DIR}"
 
 OUTPUT_FILE="${1:-}"
@@ -45,7 +45,8 @@ tsc_raw=$(./node_modules/.bin/tsc --noEmit 2>&1) || tsc_exit=$?
 
 # Parse tsc text output into structured records:
 #   file(line,col): error TS1234: message
-echo "${tsc_raw}" | python3 - "${TSC_JSON}" <<'PYEOF'
+TSC_PARSE_PY="${WORK_DIR}/tsc_parse.py"
+cat > "${TSC_PARSE_PY}" <<'PYEOF'
 import sys, json, re
 
 out_path = sys.argv[1]
@@ -71,6 +72,8 @@ for raw_line in sys.stdin:
 with open(out_path, "w") as f:
     json.dump(diagnostics, f)
 PYEOF
+
+echo "${tsc_raw}" | python3 "${TSC_PARSE_PY}" "${TSC_JSON}"
 
 # ──────────────────────────────────────────────
 # 3. jscpd duplicate detection

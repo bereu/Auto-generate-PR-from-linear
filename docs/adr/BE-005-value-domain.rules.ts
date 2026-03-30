@@ -4,7 +4,12 @@ export default {
   rules: {
     "private-value-property": {
       description: "Value Domain classes must have a private '_value' property.",
-      check: async (ctx) => {
+      check: async (ctx: {
+        scopedFiles: string | any[];
+        glob: (arg0: string) => any;
+        readFile: (arg0: any) => any;
+        report: { violation: (arg0: { message: string; file: any }) => void };
+      }) => {
         const files = ctx.scopedFiles.length > 0 ? ctx.scopedFiles : await ctx.glob("src/**/*.ts");
         for (const file of files) {
           if (file.includes("docs/")) continue;
