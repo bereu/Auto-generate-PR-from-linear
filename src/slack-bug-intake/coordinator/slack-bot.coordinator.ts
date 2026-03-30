@@ -43,6 +43,7 @@ export class SlackBotCoordinator implements OnModuleInit {
   }
 
   private async handleIncoming(thread: Thread): Promise<void> {
+    await thread.refresh();
     const { isComplete, clarifyingQuestion } = await this.evaluateBugReport.execute(
       thread.recentMessages,
     );
