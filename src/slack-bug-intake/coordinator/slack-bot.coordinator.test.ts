@@ -5,12 +5,12 @@ import {
 } from "@/slack-bug-intake/slack-bug-intake.constants";
 import type { Message, Thread } from "chat";
 
-// Prevent Chat SDK from initializing during import
 vi.mock("chat", () => ({ Chat: vi.fn() }));
 vi.mock("@chat-adapter/slack", () => ({ createSlackAdapter: vi.fn() }));
 vi.mock("@chat-adapter/state-memory", () => ({ createMemoryState: vi.fn() }));
 
 import { SlackBotCoordinator } from "@/slack-bug-intake/coordinator/slack-bot.coordinator";
+import type { SlackTransfer } from "@/transfer/slack.transfer";
 import type { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
 import type { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
 import { makeTestMessage } from "@/test/message-helper";
@@ -22,18 +22,25 @@ function makeThread(messages: Message[]): Thread {
     post: vi.fn().mockResolvedValue(undefined),
     subscribe: vi.fn().mockResolvedValue(undefined),
     unsubscribe: vi.fn().mockResolvedValue(undefined),
+    refresh: vi.fn().mockResolvedValue(undefined),
   } as unknown as Thread;
 }
 
 describe("SlackBotCoordinator.handleIncoming", () => {
   let coordinator: SlackBotCoordinator;
+  let mockSlackTransfer: Partial<SlackTransfer>;
   let mockEvaluate: Partial<EvaluateBugReportQuery>;
   let mockCreateIssue: Partial<CreateLinearIssueCommand>;
 
   beforeEach(() => {
+    mockSlackTransfer = {
+      onNewMention: vi.fn(),
+      onSubscribedMessage: vi.fn(),
+    };
     mockEvaluate = { execute: vi.fn() };
     mockCreateIssue = { execute: vi.fn() };
     coordinator = new SlackBotCoordinator(
+      mockSlackTransfer as SlackTransfer,
       mockEvaluate as EvaluateBugReportQuery,
       mockCreateIssue as CreateLinearIssueCommand,
     );
@@ -82,7 +89,6 @@ describe("SlackBotCoordinator.handleIncoming", () => {
       clarifyingQuestion: "Still missing info.",
     });
 
-    // MAX_CLARIFICATION_ROUNDS bot messages already in history
     const botMessages = Array.from({ length: MAX_CLARIFICATION_ROUNDS }, (_, i) =>
       makeTestMessage(`Question ${i + 1}`, true),
     );

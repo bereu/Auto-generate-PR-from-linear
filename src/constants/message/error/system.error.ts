@@ -8,4 +8,5 @@ export const SYSTEM_ERRORS = {
   unknownRepo: "Unknown repo",
   teamNotFound: "Team not found",
   stateNotFound: "State not found",
+  linearCommentFailed: "Linear comment creation failed",
 } as const;

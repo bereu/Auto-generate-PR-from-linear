@@ -29,4 +29,8 @@ export class IssueRepository {
   async updateTitle(issueId: string, title: string): Promise<void> {
     await this.transfer.changeTitle(issueId, title);
   }
+
+  async addComment(issueId: string, body: string): Promise<void> {
+    await this.transfer.createComment(issueId, body);
+  }
 }

@@ -14,6 +14,7 @@ import {
   CLAUDE_RESULT_SUBTYPES,
 } from "@/constants/agent.constants";
 import { SYSTEM_ERRORS } from "@/constants/message/error/system.error";
+import { AGENT_MESSAGES } from "@/constants/message/success/agent.message";
 
 interface ClaudeResultMessage {
   type: "result";
@@ -128,7 +129,8 @@ export async function processIssue(issue: LinearIssue): Promise<void> {
   logger.info(`\n▶ [${issueId}] ${issue.title().value()}`);
   logger.info(`  📦 ${repoFull}`);
 
-  // 1. Linear を "In Progress" に（重複実行防止）
+  // 1. Linear にコメントを追加し、"In Progress" に（重複実行防止）
+  await issueRepository.addComment(issueId, AGENT_MESSAGES.agentStarting).catch(() => {});
   await issueRepository.startImplementation(issueId);
 
   // 2. worktree を作成（他タスクと独立した作業ディレクトリ）
@@ -143,6 +145,7 @@ export async function processIssue(issue: LinearIssue): Promise<void> {
 
     // 4. Linear を "In Review" に
     await issueRepository.markReadyForReview(issueId);
+    await issueRepository.addComment(issueId, AGENT_MESSAGES.agentComplete).catch(() => {});
     logger.info(`  ✅ [${issueId}] 完了`);
   } catch (err) {
     logger.error(`  ❌ [${issueId}] 失敗: ${(err as Error).message}`);

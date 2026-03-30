@@ -37,6 +37,7 @@ describe("CreateLinearIssueCommand", () => {
       title: "Login button broken",
       description: "## Summary\nButton does not work.",
       labelNames: ["agent"],
+      stateName: "Todo",
     });
   });
 

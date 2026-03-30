@@ -9,6 +9,7 @@ import {
   FORMAT_SYSTEM_PROMPT,
   LINEAR_AGENT_LABEL,
 } from "@/slack-bug-intake/slack-bug-intake.constants";
+import { LINEAR_STATES } from "@/repos.config";
 
 const FormatSchema = z.object({
   title: z.string(),
@@ -37,6 +38,7 @@ export class CreateLinearIssueCommand {
       title: bugReport.title(),
       description: bugReport.description(),
       labelNames: [LINEAR_AGENT_LABEL],
+      stateName: LINEAR_STATES.todo,
     });
   }
 }

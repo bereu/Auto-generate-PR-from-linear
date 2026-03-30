@@ -60,6 +60,12 @@ export class LinearTransfer {
     logger.info(`  📋 Linear: ${issueId} → "${stateName}"`);
   }
 
+  async createComment(issueId: string, body: string): Promise<void> {
+    const result = await this.client().createComment({ issueId, body });
+    if (!result.success) throw new Error(SYSTEM_ERRORS.linearCommentFailed);
+    logger.info(`  📋 Linear: comment added to ${issueId}`);
+  }
+
   async changeTitle(issueId: string, title: string): Promise<void> {
     await this.client().updateIssue(issueId, { title });
     logger.info(`  📋 Linear: ${issueId} title → "${title}"`);
@@ -69,6 +75,7 @@ export class LinearTransfer {
     title: string;
     description: string;
     labelNames: string[];
+    stateName?: string;
   }): Promise<{ url: string }> {
     const client = this.client();
     const teamsConnection = await client.teams();
@@ -80,11 +87,21 @@ export class LinearTransfer {
       .filter((l) => params.labelNames.includes(l.name))
       .map((l) => l.id);
 
+    let stateId: string | undefined;
+    if (params.stateName) {
+      const statesConnection = await team.states();
+      const state = statesConnection.nodes.find((s) => s.name === params.stateName);
+      if (!state)
+        throw new Error(`${SYSTEM_ERRORS.stateNotFound} "${params.stateName}" not found in team`);
+      stateId = state.id;
+    }
+
     const result = await client.createIssue({
       teamId: team.id,
       title: params.title,
       description: params.description,
       labelIds,
+      ...(stateId ? { stateId } : {}),
     });
     const issue = await result.issue;
     if (!issue) throw new Error(SYSTEM_ERRORS.linearIssueCreationFailed);
