@@ -5,7 +5,6 @@ import { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-re
 import { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
 import { LinearTransfer } from "@/transfer/linear.transfer";
 import { SlackTransfer } from "@/transfer/slack.transfer";
-import { SlackWebhookAdapter } from "@/util/slack-webhook.adapter";
 
 @Module({
   controllers: [SlackEventsController],
@@ -15,7 +14,6 @@ import { SlackWebhookAdapter } from "@/util/slack-webhook.adapter";
     CreateLinearIssueCommand,
     LinearTransfer,
     SlackTransfer,
-    SlackWebhookAdapter,
   ],
 })
 export class SlackBugIntakeModule {}

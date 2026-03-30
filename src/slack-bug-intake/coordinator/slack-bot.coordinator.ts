@@ -1,4 +1,5 @@
 import { Injectable, Inject } from "@nestjs/common";
+import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import type { Thread } from "chat";
 import { SlackTransfer } from "@/transfer/slack.transfer";
 import { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
@@ -7,6 +8,7 @@ import {
   MAX_CLARIFICATION_ROUNDS,
   FALLBACK_MESSAGE,
 } from "@/slack-bug-intake/slack-bug-intake.constants";
+import { dispatchWebhook } from "@/util/webhook-adapter";
 
 @Injectable()
 export class SlackBotCoordinator {
@@ -42,5 +44,9 @@ export class SlackBotCoordinator {
       await thread.post(FALLBACK_MESSAGE);
       await thread.unsubscribe();
     }
+  }
+
+  async handleWebhook(req: ExpressRequest, res: ExpressResponse): Promise<void> {
+    await dispatchWebhook(req, res, (request) => this.slackTransfer.chat.webhooks.slack(request));
   }
 }
