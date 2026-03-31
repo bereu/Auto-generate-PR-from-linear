@@ -8,15 +8,14 @@ version: 1.1.0
 
 ## Positive
 
-1. create linear issues with agent label
-2. agent will run
-3. create fix PR
+1. User mention to bot
+2. Agent discuss with user until get enough information
+3. create linear ticket
 
-## Negative
+## Sample Error report
 
-1. create linear issues with agent label
-2. some error will happen
-3. issues status will be `Suspend`
+- User cannot login with SSO
+- They use entra ID of Azure
 
 ## CLI
 
