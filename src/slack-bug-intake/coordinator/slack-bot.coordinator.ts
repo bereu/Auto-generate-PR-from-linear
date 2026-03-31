@@ -1,4 +1,4 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject, type OnModuleInit } from "@nestjs/common";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import type { Thread } from "chat";
 import { SlackTransfer } from "@/transfer/slack.transfer";
@@ -11,12 +11,14 @@ import {
 import { dispatchWebhook } from "@/util/webhook-adapter";
 
 @Injectable()
-export class SlackBotCoordinator {
+export class SlackBotCoordinator implements OnModuleInit {
   constructor(
     @Inject(SlackTransfer) private readonly slackTransfer: SlackTransfer,
     @Inject(EvaluateBugReportQuery) private readonly evaluateBugReport: EvaluateBugReportQuery,
     @Inject(CreateLinearIssueCommand) private readonly createLinearIssue: CreateLinearIssueCommand,
-  ) {
+  ) {}
+
+  onModuleInit(): void {
     this.slackTransfer.onNewMention(async (thread, _message) => {
       await thread.subscribe();
       await this.handleIncoming(thread);

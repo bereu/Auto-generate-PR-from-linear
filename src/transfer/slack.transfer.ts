@@ -1,4 +1,4 @@
-import { Injectable, type OnModuleInit } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { Chat, type Thread, type Message } from "chat";
 import { createSlackAdapter } from "@chat-adapter/slack";
 import { createMemoryState } from "@chat-adapter/state-memory";
@@ -7,10 +7,10 @@ import { SLACK_BOT_USERNAME } from "@/slack-bug-intake/slack-bug-intake.constant
 type MentionHandler = (thread: Thread, message: Message) => Promise<void>;
 
 @Injectable()
-export class SlackTransfer implements OnModuleInit {
-  chat!: Chat;
+export class SlackTransfer {
+  chat: Chat;
 
-  onModuleInit(): void {
+  constructor() {
     const slackAdapter = createSlackAdapter({
       botToken: process.env.SLACK_BOT_TOKEN,
       signingSecret: process.env.SLACK_SIGNING_SECRET,

@@ -5,7 +5,7 @@ import nunjucks from "nunjucks";
 import { logger } from "@/util/logger";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROMPTS_DIR = path.join(__dirname, "..", "prompts");
+const PROMPTS_DIR = path.join(__dirname, "../..", "prompts");
 
 nunjucks.configure({ throwOnUndefined: true });
 
