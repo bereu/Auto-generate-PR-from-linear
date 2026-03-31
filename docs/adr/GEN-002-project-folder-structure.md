@@ -2,7 +2,8 @@
 id: GEN-002
 title: Project Folder Structure
 domain: general
-rules: false
+rules: true
+files: ["src/util/**"]
 ---
 
 # Project Folder Structure

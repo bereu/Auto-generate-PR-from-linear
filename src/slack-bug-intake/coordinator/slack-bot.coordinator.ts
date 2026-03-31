@@ -8,7 +8,7 @@ import {
   MAX_CLARIFICATION_ROUNDS,
   FALLBACK_MESSAGE,
 } from "@/slack-bug-intake/slack-bug-intake.constants";
-import { dispatchWebhook } from "@/util/webhook-adapter";
+import { webhookAdapter } from "@/util/webhook-adapter";
 
 @Injectable()
 export class SlackBotCoordinator implements OnModuleInit {
@@ -49,6 +49,8 @@ export class SlackBotCoordinator implements OnModuleInit {
   }
 
   async handleWebhook(req: ExpressRequest, res: ExpressResponse): Promise<void> {
-    await dispatchWebhook(req, res, (request) => this.slackTransfer.chat.webhooks.slack(request));
+    await webhookAdapter.dispatch(req, res, (request) =>
+      this.slackTransfer.chat.webhooks.slack(request),
+    );
   }
 }

@@ -12,6 +12,8 @@ export default defineConfig({
     "archgate/private-list-property": "error",
     "archgate/no-magic-numbers": "error",
     "archgate/no-magic-strings": "error",
+    "archgate/util-must-be-singleton-class": "error",
+    "archgate/util-no-exported-functions": "error",
   },
   overrides: [
     {

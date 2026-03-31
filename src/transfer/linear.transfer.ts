@@ -60,6 +60,12 @@ export class LinearTransfer {
     logger.info(`  📋 Linear: ${issueId} → "${stateName}"`);
   }
 
+  async fetchComments(issueId: string): Promise<string[]> {
+    const issue = await this.client().issue(issueId);
+    const commentsConnection = await issue.comments();
+    return commentsConnection.nodes.map((c) => c.body);
+  }
+
   async createComment(issueId: string, body: string): Promise<void> {
     const result = await this.client().createComment({ issueId, body });
     if (!result.success) throw new Error(SYSTEM_ERRORS.linearCommentFailed);

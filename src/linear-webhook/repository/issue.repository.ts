@@ -1,9 +1,14 @@
 import { LinearTransfer } from "@/transfer/linear.transfer";
+import { GithubTransfer } from "@/transfer/github.transfer";
 import { LinearIssue } from "@/domain/issue/linear-issue";
 import { LINEAR_LABEL, LINEAR_STATES } from "@/repos.config";
+import { AGENT_MESSAGES } from "@/constants/message/success/agent.message";
 
 export class IssueRepository {
-  constructor(private readonly transfer: LinearTransfer) {}
+  constructor(
+    private readonly transfer: LinearTransfer,
+    private readonly githubTransfer: GithubTransfer,
+  ) {}
 
   async findAgentIssues(): Promise<LinearIssue[]> {
     const raw = await this.transfer.fetchIssuesByLabelAndState(LINEAR_LABEL, LINEAR_STATES.todo);
@@ -32,5 +37,14 @@ export class IssueRepository {
 
   async addComment(issueId: string, body: string): Promise<void> {
     await this.transfer.createComment(issueId, body);
+  }
+
+  async hasStartingComment(issueId: string): Promise<boolean> {
+    const bodies = await this.transfer.fetchComments(issueId);
+    return bodies.some((b) => b === AGENT_MESSAGES.agentStarting);
+  }
+
+  async fetchPrUrl(repoFullName: string, branch: string): Promise<string | null> {
+    return this.githubTransfer.fetchPrUrl(repoFullName, branch);
   }
 }

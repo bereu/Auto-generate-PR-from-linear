@@ -13,6 +13,7 @@ export type ClaudeContentType = (typeof CLAUDE_CONTENT_TYPES)[keyof typeof CLAUD
 
 export const CLAUDE_RESULT_SUBTYPES = {
   errorMaxTurns: "error_max_turns",
+  success: "success",
 } as const;
 
 export type ClaudeResultSubtype =
