@@ -4,13 +4,16 @@ import { syncAllRepos } from "@/sync-repos";
 import { logger } from "@/util/logger";
 import { WEBHOOK_PORT } from "@/repos.config";
 
+const NO_FAILURES = 0;
+const EXIT_CODE_ERROR = 1;
+
 async function bootstrap(): Promise<void> {
   logger.info("🚀 Claude Linear Agent starting...");
 
   validateEnv();
 
   const { failed } = await syncAllRepos();
-  if (failed.length > 0) {
+  if (failed.length > NO_FAILURES) {
     logger.warn(
       `⚠️  ${failed.length} repo(s) failed to sync: ${failed.map((f) => f.name).join(", ")}`,
     );
@@ -25,5 +28,5 @@ async function bootstrap(): Promise<void> {
 
 bootstrap().catch((err: Error) => {
   logger.error(`Fatal: ${err.message}`);
-  process.exit(1);
+  process.exit(EXIT_CODE_ERROR);
 });

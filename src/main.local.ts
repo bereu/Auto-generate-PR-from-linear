@@ -19,37 +19,33 @@ import { WEBHOOK_PORT } from "@/repos.config";
 function resolveSubdomain(): string | undefined {
   const idx = process.argv.indexOf("--subdomain");
   if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1];
-  return process.env.LOCALTUNNEL_SUBDOMAIN || undefined;
+  return process.env.LOCALTUNNEL_SUBDOMAIN ?? undefined;
 }
 
-async function bootstrap(): Promise<void> {
-  validateEnv();
-  logger.info("🧪 [LOCAL] Starting webhook server (repo sync skipped)");
-
-  const app = await createApp();
-  await app.listen(WEBHOOK_PORT);
-  logger.info(`✅ Webhook server on port ${WEBHOOK_PORT}`);
-
-  const subdomain = resolveSubdomain();
+async function openTunnel(subdomain?: string): Promise<Awaited<ReturnType<typeof localtunnel>>> {
   logger.info(
     subdomain
       ? `🌐 Opening public tunnel (subdomain: ${subdomain})...`
       : "🌐 Opening public tunnel (random subdomain)...",
   );
-  const tunnel = await localtunnel({ port: WEBHOOK_PORT, subdomain });
+  return localtunnel({ port: WEBHOOK_PORT, subdomain });
+}
 
-  // The requested subdomain is best-effort: if it is taken, loca.lt returns a
-  // random URL. Warn loudly so the URL registered in Slack/Linear is never wrong.
+function warnIfSubdomainChanged(
+  subdomain: string | undefined,
+  tunnel: Awaited<ReturnType<typeof localtunnel>>,
+): void {
   if (subdomain && !tunnel.url.includes(`//${subdomain}.`)) {
     logger.warn(
       `⚠️  Requested subdomain "${subdomain}" was unavailable — got a RANDOM URL instead. ` +
         `Use the Public URL below (not the requested subdomain) and update your Slack/Linear webhooks.`,
     );
   }
+}
 
+function logTunnelInfo(tunnel: Awaited<ReturnType<typeof localtunnel>>, secret: string): void {
   const webhookUrl = `${tunnel.url}/webhook`;
   const slackUrl = `${tunnel.url}/slack/events`;
-  const secret = process.env.LINEAR_WEBHOOK_SECRET!;
 
   logger.info(`\n${"─".repeat(54)}`);
   logger.info(`🌐 Public URL: ${tunnel.url}`);
@@ -60,7 +56,9 @@ async function bootstrap(): Promise<void> {
   logger.info(`  URL:    ${webhookUrl}`);
   logger.info(`  Secret: ${secret}`);
   logger.info(`${"─".repeat(54)}\n`);
+}
 
+function setupShutdownHandlers(tunnel: Awaited<ReturnType<typeof localtunnel>>): void {
   tunnel.on("close", () => {
     logger.warn("⚠️  Tunnel closed. Restart dev:local to get a new public URL.");
   });
@@ -73,6 +71,21 @@ async function bootstrap(): Promise<void> {
 
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
+}
+
+async function bootstrap(): Promise<void> {
+  validateEnv();
+  logger.info("🧪 [LOCAL] Starting webhook server (repo sync skipped)");
+
+  const app = await createApp();
+  await app.listen(WEBHOOK_PORT);
+  logger.info(`✅ Webhook server on port ${WEBHOOK_PORT}`);
+
+  const subdomain = resolveSubdomain();
+  const tunnel = await openTunnel(subdomain);
+  warnIfSubdomainChanged(subdomain, tunnel);
+  logTunnelInfo(tunnel, process.env.LINEAR_WEBHOOK_SECRET!);
+  setupShutdownHandlers(tunnel);
 }
 
 bootstrap().catch((err: Error) => {

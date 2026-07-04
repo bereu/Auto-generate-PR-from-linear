@@ -20,6 +20,8 @@ import {
   type RawWebhookPayload,
 } from "@/linear-webhook/command/implement-issue.command";
 
+const HTTP_OK = 200;
+
 @Controller()
 export class LinearWebhookController {
   constructor(
@@ -27,7 +29,7 @@ export class LinearWebhookController {
   ) {}
 
   @Post("webhook")
-  @HttpCode(200)
+  @HttpCode(HTTP_OK)
   receiveLinearEvent(
     @Req() req: Request,
     @Headers(LINEAR_WEBHOOK_SIGNATURE_HEADER) signature: string,

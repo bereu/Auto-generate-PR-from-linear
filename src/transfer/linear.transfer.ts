@@ -77,6 +77,27 @@ export class LinearTransfer {
     logger.info(`  📋 Linear: ${issueId} title → "${title}"`);
   }
 
+  private async resolveTeam(): Promise<Team> {
+    const client = this.client();
+    const teamsConnection = await client.teams();
+    const team = teamsConnection.nodes[0];
+    if (!team) throw new Error(SYSTEM_ERRORS.noLinearTeamFound);
+    return team;
+  }
+
+  private async resolveLabelIds(team: Team, labelNames: string[]): Promise<string[]> {
+    const labelsConnection = await team.labels();
+    return labelsConnection.nodes.filter((l) => labelNames.includes(l.name)).map((l) => l.id);
+  }
+
+  private async resolveStateId(team: Team, stateName?: string): Promise<string | undefined> {
+    if (!stateName) return undefined;
+    const statesConnection = await team.states();
+    const state = statesConnection.nodes.find((s) => s.name === stateName);
+    if (!state) throw new Error(`${SYSTEM_ERRORS.stateNotFound} "${stateName}" not found in team`);
+    return state.id;
+  }
+
   async createIssue(params: {
     title: string;
     description: string;
@@ -84,23 +105,9 @@ export class LinearTransfer {
     stateName?: string;
   }): Promise<{ url: string }> {
     const client = this.client();
-    const teamsConnection = await client.teams();
-    const team = teamsConnection.nodes[0];
-    if (!team) throw new Error(SYSTEM_ERRORS.noLinearTeamFound);
-
-    const labelsConnection = await team.labels();
-    const labelIds = labelsConnection.nodes
-      .filter((l) => params.labelNames.includes(l.name))
-      .map((l) => l.id);
-
-    let stateId: string | undefined;
-    if (params.stateName) {
-      const statesConnection = await team.states();
-      const state = statesConnection.nodes.find((s) => s.name === params.stateName);
-      if (!state)
-        throw new Error(`${SYSTEM_ERRORS.stateNotFound} "${params.stateName}" not found in team`);
-      stateId = state.id;
-    }
+    const team = await this.resolveTeam();
+    const labelIds = await this.resolveLabelIds(team, params.labelNames);
+    const stateId = await this.resolveStateId(team, params.stateName);
 
     const result = await client.createIssue({
       teamId: team.id,

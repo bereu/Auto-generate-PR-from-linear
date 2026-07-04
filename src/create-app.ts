@@ -3,6 +3,9 @@ import { json, type Request } from "express";
 import { AppModule } from "@/app.module";
 import { logger } from "@/util/logger";
 
+const NO_MISSING = 0;
+const EXIT_CODE_ERROR = 1;
+
 export function validateEnv(): void {
   const required = [
     "GITHUB_TOKEN",
@@ -15,9 +18,9 @@ export function validateEnv(): void {
   // LANGFUSE_* are intentionally optional: the langfuse util falls back to the
   // local TRIAGE_SYSTEM_PROMPT when Langfuse is unset/unreachable.
   const missing = required.filter((k) => !process.env[k]);
-  if (missing.length > 0) {
+  if (missing.length > NO_MISSING) {
     logger.error(`❌ 環境変数が不足しています: ${missing.join(", ")}`);
-    process.exit(1);
+    process.exit(EXIT_CODE_ERROR);
   }
 }
 

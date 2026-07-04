@@ -10,7 +10,7 @@ export class TimeManagement {
   private readonly _tz: string;
 
   private constructor() {
-    this._tz = process.env.TZ || "UTC";
+    this._tz = process.env.TZ ?? "UTC";
   }
 
   static getInstance(): TimeManagement {

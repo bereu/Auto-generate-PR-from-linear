@@ -29,29 +29,33 @@ describe("GithubTransfer.fetchPrUrl", () => {
     }
   });
 
-  it("returns PR URL when PR exists", async () => {
-    mockPullsList.mockResolvedValue({
-      data: [{ html_url: "https://github.com/org/repo/pull/42" }],
+  describe("successful PR fetch", () => {
+    it("returns PR URL when PR exists", async () => {
+      mockPullsList.mockResolvedValue({
+        data: [{ html_url: "https://github.com/org/repo/pull/42" }],
+      });
+      const result = await transfer.fetchPrUrl("org/repo", "claude/issue-123");
+      expect(result).toBe("https://github.com/org/repo/pull/42");
     });
-    const result = await transfer.fetchPrUrl("org/repo", "claude/issue-123");
-    expect(result).toBe("https://github.com/org/repo/pull/42");
+
+    it("returns null when no PRs found", async () => {
+      mockPullsList.mockResolvedValue({ data: [] });
+      const result = await transfer.fetchPrUrl("org/repo", "claude/issue-123");
+      expect(result).toBeNull();
+    });
   });
 
-  it("returns null when no PRs found", async () => {
-    mockPullsList.mockResolvedValue({ data: [] });
-    const result = await transfer.fetchPrUrl("org/repo", "claude/issue-123");
-    expect(result).toBeNull();
-  });
+  describe("error handling", () => {
+    it("returns null when API call throws", async () => {
+      mockPullsList.mockRejectedValue(new Error("API error"));
+      const result = await transfer.fetchPrUrl("org/repo", "claude/issue-123");
+      expect(result).toBeNull();
+    });
 
-  it("returns null when API call throws", async () => {
-    mockPullsList.mockRejectedValue(new Error("API error"));
-    const result = await transfer.fetchPrUrl("org/repo", "claude/issue-123");
-    expect(result).toBeNull();
-  });
-
-  it("throws when repoFullName has no slash", async () => {
-    await expect(transfer.fetchPrUrl("invalid-repo", "branch")).rejects.toThrow(
-      "repoFullName must be in 'owner/repo' format",
-    );
+    it("throws when repoFullName has no slash", async () => {
+      await expect(transfer.fetchPrUrl("invalid-repo", "branch")).rejects.toThrow(
+        "repoFullName must be in 'owner/repo' format",
+      );
+    });
   });
 });
