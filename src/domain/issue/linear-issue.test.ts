@@ -43,63 +43,61 @@ describe("IssueTitle", () => {
   });
 });
 
-describe("LinearIssue", () => {
-  describe("construction and validation", () => {
-    it("reconstructs a valid domain object", () => {
-      const issue = LinearIssue.reconstruct("id-1", "Fix bug", "desc", "http://url", ["agent"]);
-      expect(issue.id().value()).toBe("id-1");
-      expect(issue.title().value()).toBe("Fix bug");
-      expect(issue.description()).toBe("desc");
-      expect(issue.url()).toBe("http://url");
-      expect(issue.labels()).toEqual(["agent"]);
-    });
-
-    it("throws when id is empty", () => {
-      expect(() => LinearIssue.reconstruct("", "Fix bug", null, "http://url", [])).toThrow(
-        "IssueId must be a non-empty string",
-      );
-    });
-
-    it("throws when title is empty", () => {
-      expect(() => LinearIssue.reconstruct("id-1", "", null, "http://url", [])).toThrow(
-        "IssueTitle must be a non-empty string",
-      );
-    });
+describe("LinearIssue - construction and validation", () => {
+  it("reconstructs a valid domain object", () => {
+    const issue = LinearIssue.reconstruct("id-1", "Fix bug", "desc", "http://url", ["agent"]);
+    expect(issue.id().value()).toBe("id-1");
+    expect(issue.title().value()).toBe("Fix bug");
+    expect(issue.description()).toBe("desc");
+    expect(issue.url()).toBe("http://url");
+    expect(issue.labels()).toEqual(["agent"]);
   });
 
-  describe("label queries", () => {
-    it("hasLabel returns true when label exists", () => {
-      const issue = LinearIssue.reconstruct("id-1", "title", null, "url", ["agent", "bug"]);
-      expect(issue.hasLabel("agent")).toBe(true);
-    });
-
-    it("hasLabel returns false when label is absent", () => {
-      const issue = LinearIssue.reconstruct("id-1", "title", null, "url", ["bug"]);
-      expect(issue.hasLabel("agent")).toBe(false);
-    });
-
-    it("isAgentIssue returns true when agent label is present", () => {
-      const issue = LinearIssue.reconstruct("id-1", "title", null, "url", ["agent"]);
-      expect(issue.isAgentIssue("agent")).toBe(true);
-    });
-
-    it("isAgentIssue returns false when agent label is absent", () => {
-      const issue = LinearIssue.reconstruct("id-1", "title", null, "url", ["bug"]);
-      expect(issue.isAgentIssue("agent")).toBe(false);
-    });
+  it("throws when id is empty", () => {
+    expect(() => LinearIssue.reconstruct("", "Fix bug", null, "http://url", [])).toThrow(
+      "IssueId must be a non-empty string",
+    );
   });
 
-  describe("immutability and nullability", () => {
-    it("labels returns a copy — mutations do not affect the domain", () => {
-      const issue = LinearIssue.reconstruct("id-1", "title", null, "url", ["agent"]);
-      const labels = issue.labels();
-      labels.push("extra");
-      expect(issue.labels()).toEqual(["agent"]);
-    });
+  it("throws when title is empty", () => {
+    expect(() => LinearIssue.reconstruct("id-1", "", null, "http://url", [])).toThrow(
+      "IssueTitle must be a non-empty string",
+    );
+  });
+});
 
-    it("description returns null when not provided", () => {
-      const issue = LinearIssue.reconstruct("id-1", "title", null, "url", []);
-      expect(issue.description()).toBeNull();
-    });
+describe("LinearIssue - label queries", () => {
+  it("hasLabel returns true when label exists", () => {
+    const issue = LinearIssue.reconstruct("id-1", "title", null, "url", ["agent", "bug"]);
+    expect(issue.hasLabel("agent")).toBe(true);
+  });
+
+  it("hasLabel returns false when label is absent", () => {
+    const issue = LinearIssue.reconstruct("id-1", "title", null, "url", ["bug"]);
+    expect(issue.hasLabel("agent")).toBe(false);
+  });
+
+  it("isAgentIssue returns true when agent label is present", () => {
+    const issue = LinearIssue.reconstruct("id-1", "title", null, "url", ["agent"]);
+    expect(issue.isAgentIssue("agent")).toBe(true);
+  });
+
+  it("isAgentIssue returns false when agent label is absent", () => {
+    const issue = LinearIssue.reconstruct("id-1", "title", null, "url", ["bug"]);
+    expect(issue.isAgentIssue("agent")).toBe(false);
+  });
+});
+
+describe("LinearIssue - immutability and nullability", () => {
+  it("labels returns a copy — mutations do not affect the domain", () => {
+    const issue = LinearIssue.reconstruct("id-1", "title", null, "url", ["agent"]);
+    const labels = issue.labels();
+    labels.push("extra");
+    expect(issue.labels()).toEqual(["agent"]);
+  });
+
+  it("description returns null when not provided", () => {
+    const issue = LinearIssue.reconstruct("id-1", "title", null, "url", []);
+    expect(issue.description()).toBeNull();
   });
 });

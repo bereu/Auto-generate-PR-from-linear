@@ -9,6 +9,12 @@ import { validateEnv, createApp } from "@/create-app";
 import { logger } from "@/util/logger";
 import { WEBHOOK_PORT } from "@/repos.config";
 
+const SUBDOMAIN_NOT_FOUND = -1;
+const NEXT_ARG_OFFSET = 1;
+const SEPARATOR_WIDTH = 54;
+const EXIT_SUCCESS = 0;
+const EXIT_CODE_ERROR = 1;
+
 /**
  * Reads the requested localtunnel subdomain from `--subdomain <name>` (CLI arg)
  * or the `LOCALTUNNEL_SUBDOMAIN` env var. A fixed subdomain keeps the public URL
@@ -18,7 +24,8 @@ import { WEBHOOK_PORT } from "@/repos.config";
  */
 function resolveSubdomain(): string | undefined {
   const idx = process.argv.indexOf("--subdomain");
-  if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1];
+  if (idx !== SUBDOMAIN_NOT_FOUND && process.argv[idx + NEXT_ARG_OFFSET])
+    return process.argv[idx + NEXT_ARG_OFFSET];
   return process.env.LOCALTUNNEL_SUBDOMAIN ?? undefined;
 }
 
@@ -47,15 +54,15 @@ function logTunnelInfo(tunnel: Awaited<ReturnType<typeof localtunnel>>, secret: 
   const webhookUrl = `${tunnel.url}/webhook`;
   const slackUrl = `${tunnel.url}/slack/events`;
 
-  logger.info(`\n${"─".repeat(54)}`);
+  logger.info(`\n${"─".repeat(SEPARATOR_WIDTH)}`);
   logger.info(`🌐 Public URL: ${tunnel.url}`);
   logger.info(`   Slack Events Request URL: ${slackUrl}`);
-  logger.info(`${"─".repeat(54)}`);
+  logger.info(`${"─".repeat(SEPARATOR_WIDTH)}`);
   logger.info(`Register this URL in Linear:`);
   logger.info(`  Settings → API → Webhooks → New Webhook`);
   logger.info(`  URL:    ${webhookUrl}`);
   logger.info(`  Secret: ${secret}`);
-  logger.info(`${"─".repeat(54)}\n`);
+  logger.info(`${"─".repeat(SEPARATOR_WIDTH)}\n`);
 }
 
 function setupShutdownHandlers(tunnel: Awaited<ReturnType<typeof localtunnel>>): void {
@@ -66,7 +73,7 @@ function setupShutdownHandlers(tunnel: Awaited<ReturnType<typeof localtunnel>>):
   const shutdown = (): void => {
     logger.info("Closing tunnel...");
     tunnel.close();
-    process.exit(0);
+    process.exit(EXIT_SUCCESS);
   };
 
   process.on("SIGINT", shutdown);
@@ -89,6 +96,6 @@ async function bootstrap(): Promise<void> {
 }
 
 bootstrap().catch((err: Error) => {
-  logger.error(`Fatal: ${err.message}`);
-  process.exit(1);
+  logger.critical(err);
+  process.exit(EXIT_CODE_ERROR);
 });

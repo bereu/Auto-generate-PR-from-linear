@@ -105,6 +105,7 @@ sequenceDiagram
 - Always clean up the git worktree in a \`finally\` block regardless of success or failure.
 - Verify webhook signatures (HMAC-SHA256) for both Slack and Linear before processing any payload.
 - Scope Claude's allowedTools to the minimum set needed.
+- Route every LLM system/instruction prompt through the Langfuse util's fetch-with-local-fallback methods (e.g. \`langfuse.fetchTriagePrompt\`, \`fetchFormatPrompt\`, \`fetchTaskPrompt\`), and register each prompt in Langfuse under a name centralized in \`LANGFUSE_PROMPT_NAMES\` (\`src/constants/mastra.constants.ts\`) with a matching local fallback template.
 
 ### Don't
 
@@ -112,6 +113,7 @@ sequenceDiagram
 - Do not share worktrees between concurrent issues.
 - Do not hardcode repository names or org slugs — keep them in \`repos.config.ts\`.
 - Do not process Linear webhooks if the issue lacks the \`agent\` label or is not in \`Todo\` state.
+- Do not pass a hardcoded prompt string directly to an LLM call (e.g. \`system: SOME_CONSTANT\` or an inline template). All prompts MUST be fetched from Langfuse with a local fallback so prompt edits do not require a redeploy and a fetch outage never hard-fails; local prompt constants may exist only as fallbacks.
 
 ## Consequences
 

@@ -13,6 +13,8 @@ export const AGENT_MODELS = {
 
 export const LANGFUSE_PROMPT_NAMES = {
   bugTriage: "bug-triage-system",
+  bugReportFormat: "bug-report-format-system",
+  agentTask: "agent-task",
 } as const;
 
 export type LangfusePromptName = (typeof LANGFUSE_PROMPT_NAMES)[keyof typeof LANGFUSE_PROMPT_NAMES];

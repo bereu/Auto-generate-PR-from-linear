@@ -1,7 +1,13 @@
 import { Langfuse as LangfuseSDK } from "langfuse";
 import { logger } from "@/util/logger";
 import { LANGFUSE_PROMPT_NAMES } from "@/constants/mastra.constants";
-import { TRIAGE_SYSTEM_PROMPT } from "@/slack-bug-intake/slack-bug-intake.constants";
+import {
+  TRIAGE_SYSTEM_PROMPT,
+  FORMAT_SYSTEM_PROMPT,
+} from "@/slack-bug-intake/slack-bug-intake.constants";
+import { promptLoader } from "@/util/prompt-loader";
+
+const TASK_PROMPT_NAME = "task";
 
 /**
  * Langfuse singleton — cross-cutting utility for prompt management + tracing.
@@ -30,30 +36,72 @@ export class Langfuse {
   }
 
   /**
-   * Fetches the bug-triage system prompt from Langfuse (production label) and
-   * compiles it. Falls back to the local `TRIAGE_SYSTEM_PROMPT` if Langfuse is
-   * unreachable, so triage never hard-fails on a prompt-fetch outage.
+   * Fetches a text prompt from Langfuse (production label) and compiles it with
+   * `variables`. Falls back to the local template if Langfuse is unreachable, so
+   * a prompt-fetch outage never hard-fails the caller.
+   *
+   * @param name             Langfuse prompt name.
+   * @param fallbackTemplate Raw local template (may contain `{{var}}` tokens).
+   * @param variables        Values to substitute into the template.
+   * @param renderFallback   Renders `fallbackTemplate` locally when the fetch
+   *                         throws outright. Defaults to returning it verbatim.
    */
-  async fetchTriagePrompt(variables: Record<string, string> = {}): Promise<string> {
+  private async fetchTextPrompt(
+    name: string,
+    fallbackTemplate: string,
+    variables: Record<string, string>,
+    renderFallback: () => string = () => fallbackTemplate,
+  ): Promise<string> {
     try {
-      const prompt = await this._client.getPrompt(LANGFUSE_PROMPT_NAMES.bugTriage, undefined, {
+      const prompt = await this._client.getPrompt(name, undefined, {
         type: "text",
-        fallback: TRIAGE_SYSTEM_PROMPT,
+        fallback: fallbackTemplate,
       });
 
       if (prompt.isFallback) {
-        logger.warn(
-          `[langfuse] Using local fallback for prompt: ${LANGFUSE_PROMPT_NAMES.bugTriage}`,
-        );
+        logger.warn(`[langfuse] Using local fallback for prompt: ${name}`);
       }
 
       return prompt.compile(variables);
     } catch (error) {
       logger.warn(
-        `[langfuse] Prompt fetch failed for ${LANGFUSE_PROMPT_NAMES.bugTriage}, using local default: ${(error as Error).message}`,
+        `[langfuse] Prompt fetch failed for ${name}, using local default: ${(error as Error).message}`,
       );
-      return TRIAGE_SYSTEM_PROMPT;
+      return renderFallback();
     }
+  }
+
+  /**
+   * Bug-triage system prompt. No variables. Falls back to `TRIAGE_SYSTEM_PROMPT`.
+   */
+  async fetchTriagePrompt(variables: Record<string, string> = {}): Promise<string> {
+    return this.fetchTextPrompt(LANGFUSE_PROMPT_NAMES.bugTriage, TRIAGE_SYSTEM_PROMPT, variables);
+  }
+
+  /**
+   * Bug-report formatter system prompt. No variables. Falls back to
+   * `FORMAT_SYSTEM_PROMPT`.
+   */
+  async fetchFormatPrompt(variables: Record<string, string> = {}): Promise<string> {
+    return this.fetchTextPrompt(
+      LANGFUSE_PROMPT_NAMES.bugReportFormat,
+      FORMAT_SYSTEM_PROMPT,
+      variables,
+    );
+  }
+
+  /**
+   * Coding-agent task prompt. Uses the `{{var}}` tokens in `prompts/task.md` as
+   * the offline fallback, rendered via the local `promptLoader` when Langfuse
+   * throws so variables are still substituted.
+   */
+  async fetchTaskPrompt(variables: Record<string, string>): Promise<string> {
+    return this.fetchTextPrompt(
+      LANGFUSE_PROMPT_NAMES.agentTask,
+      promptLoader.loadRaw(TASK_PROMPT_NAME),
+      variables,
+      () => promptLoader.load(TASK_PROMPT_NAME, variables),
+    );
   }
 
   client(): LangfuseSDK {

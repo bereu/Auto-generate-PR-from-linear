@@ -38,10 +38,6 @@ vi.mock("@/repos.config", () => ({
   LOG_TRUNCATE_LENGTH: 200,
 }));
 
-vi.mock("@/util/prompt-loader", () => ({
-  promptLoader: { load: vi.fn(() => "mocked prompt") },
-}));
-
 vi.mock("@/linear-webhook/repository/issue.repository", () => ({
   IssueRepository: vi.fn(function (this: unknown) {
     Object.assign(this as object, {
@@ -94,17 +90,21 @@ function mockQueryYields(messages: unknown[]): void {
 }
 
 // ── tests ────────────────────────────────────────────────────────────────────
-describe("processIssue catch-block branching", () => {
+function setupProcessIssueTest(): void {
+  vi.clearAllMocks();
+  mockAddComment.mockResolvedValue(undefined);
+  mockResetToPending.mockResolvedValue(undefined);
+  mockStartImplementation.mockResolvedValue(undefined);
+  mockMarkReadyForReview.mockResolvedValue(undefined);
+  mockHasStartingComment.mockResolvedValue(false);
+  mockFetchPrUrl.mockResolvedValue("https://github.com/org/repo/pull/1");
+  mockSuspendCommandSuspend.mockResolvedValue(undefined);
+  vi.mocked(resolveRepo).mockReturnValue("test-repo");
+}
+
+describe("processIssue catch-block - error branching (no resetToPending)", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockAddComment.mockResolvedValue(undefined);
-    mockResetToPending.mockResolvedValue(undefined);
-    mockStartImplementation.mockResolvedValue(undefined);
-    mockMarkReadyForReview.mockResolvedValue(undefined);
-    mockHasStartingComment.mockResolvedValue(false);
-    mockFetchPrUrl.mockResolvedValue("https://github.com/org/repo/pull/1");
-    mockSuspendCommandSuspend.mockResolvedValue(undefined);
-    vi.mocked(resolveRepo).mockReturnValue("test-repo");
+    setupProcessIssueTest();
   });
 
   it("MaxTurnsReachedError: does NOT call resetToPending", async () => {
@@ -136,6 +136,12 @@ describe("processIssue catch-block branching", () => {
       "issue-1",
       expect.stringContaining("Agent stopped:"),
     );
+  });
+});
+
+describe("processIssue catch-block - generic error (calls resetToPending)", () => {
+  beforeEach(() => {
+    setupProcessIssueTest();
   });
 
   it("generic Error: adds agentFailed comment then calls resetToPending", async () => {

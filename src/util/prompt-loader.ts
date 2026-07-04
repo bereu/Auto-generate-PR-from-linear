@@ -21,16 +21,24 @@ export class PromptLoader {
     return PromptLoader.instance;
   }
 
-  load(name: string, vars: Record<string, string>): string {
+  /**
+   * Reads the raw, unrendered template file (variables left intact). Used as the
+   * offline fallback source when a prompt is served from Langfuse.
+   */
+  loadRaw(name: string): string {
     const filePath = path.join(PROMPTS_DIR, `${name}.md`);
-    logger.info(`[prompt-loader] Loading prompt: ${name}`);
 
     if (!fs.existsSync(filePath)) {
       logger.error(`[prompt-loader] Prompt file not found: ${filePath}`);
       throw new Error(`Prompt file not found: ${filePath}`);
     }
 
-    const template = fs.readFileSync(filePath, "utf-8");
+    return fs.readFileSync(filePath, "utf-8");
+  }
+
+  load(name: string, vars: Record<string, string>): string {
+    logger.info(`[prompt-loader] Loading prompt: ${name}`);
+    const template = this.loadRaw(name);
     try {
       const rendered = nunjucks.renderString(template, vars).trim();
       logger.info(`[prompt-loader] Prompt loaded and rendered: ${name}`);

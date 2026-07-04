@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { LinearClient } from "@linear/sdk";
+import { LinearClient, type Team } from "@linear/sdk";
 import { logger } from "@/util/logger";
 import { SYSTEM_ERRORS } from "@/constants/message/error/system.error";
 
@@ -80,7 +80,7 @@ export class LinearTransfer {
   private async resolveTeam(): Promise<Team> {
     const client = this.client();
     const teamsConnection = await client.teams();
-    const team = teamsConnection.nodes[0];
+    const [team] = teamsConnection.nodes;
     if (!team) throw new Error(SYSTEM_ERRORS.noLinearTeamFound);
     return team;
   }

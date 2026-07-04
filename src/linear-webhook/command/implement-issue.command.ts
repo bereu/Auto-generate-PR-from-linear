@@ -76,7 +76,10 @@ export class ImplementIssueCommand {
       `[implement-issue] Dispatching agent for ${issue.id().value()}: ${issue.title().value()}`,
     );
     processIssue(issue).catch((err: Error) => {
-      logger.error(`[implement-issue] Failed for ${issue.id().value()}: ${err.message}`);
+      logger.error(`[implement-issue] Failed for ${issue.id().value()}: ${err.message}`, {
+        error: err,
+        properties: { issueId: issue.id().value() },
+      });
     });
   }
 }

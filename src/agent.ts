@@ -7,7 +7,7 @@ import { GithubTransfer } from "@/transfer/github.transfer";
 import { SuspendIssueCommand } from "@/linear-webhook/command/suspend-issue.command";
 import { LinearIssue } from "@/domain/issue/linear-issue";
 import { REPOS, MAX_TURNS, LOG_TRUNCATE_LENGTH } from "@/repos.config";
-import { promptLoader } from "@/util/prompt-loader";
+import { langfuse } from "@/util/langfuse";
 import { logger } from "@/util/logger";
 import {
   CLAUDE_MESSAGE_TYPES,
@@ -26,6 +26,20 @@ interface ClaudeResultMessage {
   subtype?: string;
   usage?: { total_tokens?: number };
 }
+
+const LOG_TRUNCATE_START = 0;
+
+const CLAUDE_ALLOWED_TOOLS = [
+  "Read",
+  "Write",
+  "Skill",
+  "Bash(git add *)",
+  "Bash(git commit *)",
+  "Bash(git push *)",
+  "Bash(gh pr create *)",
+  "Bash(npm test)",
+  "Bash(npm run lint)",
+];
 
 function createIssueRepository(): IssueRepository {
   return new IssueRepository(new LinearTransfer(), new GithubTransfer());
@@ -56,13 +70,13 @@ function buildPrContent(issue: LinearIssue): { title: string; body: string } {
 // ----------------------------------------
 // Helper: Build prompt for Claude agent
 // ----------------------------------------
-function buildAgentPrompt(
+async function buildAgentPrompt(
   issue: LinearIssue,
   workBranch: string,
   repoFullName: string,
   prContent: { title: string; body: string },
-): string {
-  return promptLoader.load("task", {
+): Promise<string> {
+  return langfuse.fetchTaskPrompt({
     title: issue.title().value(),
     description: issue.description() ?? "詳細なし",
     workBranch,
@@ -81,7 +95,7 @@ function logToolBlock(
 ): void {
   if (block.type === CLAUDE_CONTENT_TYPES.toolUse) {
     logger.info(
-      `    🔧 [${issueId}] ${block.name}: ${JSON.stringify(block.input).slice(0, LOG_TRUNCATE_LENGTH)}`,
+      `    🔧 [${issueId}] ${block.name}: ${JSON.stringify(block.input).slice(LOG_TRUNCATE_START, LOG_TRUNCATE_LENGTH)}`,
     );
   }
 }
@@ -128,7 +142,7 @@ async function runClaude(
   suspendIssue: SuspendIssueCommand,
 ): Promise<ClaudeResultMessage> {
   const prContent = buildPrContent(issue);
-  const prompt = buildAgentPrompt(issue, workBranch, repoFullName, prContent);
+  const prompt = await buildAgentPrompt(issue, workBranch, repoFullName, prContent);
 
   let result: ClaudeResultMessage | null = null;
 
@@ -137,17 +151,7 @@ async function runClaude(
     options: {
       cwd: wtPath,
       settingSources: ["project"],
-      allowedTools: [
-        "Read",
-        "Write",
-        "Skill",
-        "Bash(git add *)",
-        "Bash(git commit *)",
-        "Bash(git push *)",
-        "Bash(gh pr create *)",
-        "Bash(npm test)",
-        "Bash(npm run lint)",
-      ],
+      allowedTools: CLAUDE_ALLOWED_TOOLS,
       maxTurns: MAX_TURNS,
     },
   })) {
@@ -219,19 +223,20 @@ async function handleProcessIssueError(
   issueRepository: IssueRepository,
   suspendIssue: SuspendIssueCommand,
 ): Promise<void> {
+  const ctx = { error: err, properties: { issueId } };
   if (err instanceof MaxTurnsReachedError) {
-    logger.warn(`  ⚠️  [${issueId}] Max turns reached: ${err.message}`);
+    logger.warn(`  ⚠️  [${issueId}] Max turns reached: ${err.message}`, ctx);
   } else if (err instanceof ClaudeTerminatedError) {
-    logger.warn(`  ⚠️  [${issueId}] Claude terminated: ${err.message}`);
+    logger.warn(`  ⚠️  [${issueId}] Claude terminated: ${err.message}`, ctx);
     await suspendIssue.suspend(issue).catch(() => {});
     await issueRepository.addComment(issueId, AGENT_MESSAGES.agentTerminated).catch(() => {});
   } else if (err instanceof UnknownRepoError) {
-    logger.warn(`  ⚠️  [${issueId}] Business error: ${err.message}`);
+    logger.warn(`  ⚠️  [${issueId}] Business error: ${err.message}`, ctx);
     await issueRepository
       .addComment(issueId, AGENT_MESSAGES.agentStopped(err.message))
       .catch(() => {});
   } else {
-    logger.error(`  ❌ [${issueId}] System error: ${err.message}`);
+    logger.error(`  ❌ [${issueId}] System error: ${err.message}`, ctx);
     await issueRepository
       .addComment(issueId, AGENT_MESSAGES.agentFailed(err.message))
       .catch(() => {});

@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
 import { makeTestMessage } from "@/test/message-helper";
 
+const FIRST_CALL = 0;
+const FIRST_ARG = 0;
+const EXPECTED_MESSAGE_COUNT = 3;
+
 vi.mock("ai", () => ({
   generateObject: vi.fn(),
 }));
@@ -12,16 +16,24 @@ vi.mock("@ai-sdk/anthropic", () => ({
 
 import { generateObject } from "ai";
 
-describe("CreateLinearIssueCommand", () => {
+function setupCommandTest(): {
+  command: CreateLinearIssueCommand;
+  mockLinearTransfer: { createIssue: ReturnType<typeof vi.fn> };
+} {
+  const mockLinearTransfer = {
+    createIssue: vi.fn().mockResolvedValue({ url: "https://linear.app/issue/ENG-123" }),
+  };
+  const command = new CreateLinearIssueCommand(mockLinearTransfer as never);
+  vi.clearAllMocks();
+  return { command, mockLinearTransfer };
+}
+
+describe("CreateLinearIssueCommand - createIssue invocation", () => {
   let command: CreateLinearIssueCommand;
   let mockLinearTransfer: { createIssue: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    mockLinearTransfer = {
-      createIssue: vi.fn().mockResolvedValue({ url: "https://linear.app/issue/ENG-123" }),
-    };
-    command = new CreateLinearIssueCommand(mockLinearTransfer as never);
-    vi.clearAllMocks();
+    ({ command, mockLinearTransfer } = setupCommandTest());
   });
 
   it("calls linearTransfer.createIssue with labelNames agent", async () => {
@@ -40,6 +52,14 @@ describe("CreateLinearIssueCommand", () => {
       stateName: "Todo",
     });
   });
+});
+
+describe("CreateLinearIssueCommand - return value", () => {
+  let command: CreateLinearIssueCommand;
+
+  beforeEach(() => {
+    ({ command } = setupCommandTest());
+  });
 
   it("returns the issue URL on success", async () => {
     vi.mocked(generateObject).mockResolvedValue({
@@ -48,6 +68,14 @@ describe("CreateLinearIssueCommand", () => {
 
     const result = await command.execute([makeTestMessage("report", false)]);
     expect(result.url).toBe("https://linear.app/issue/ENG-123");
+  });
+});
+
+describe("CreateLinearIssueCommand - generateObject messages", () => {
+  let command: CreateLinearIssueCommand;
+
+  beforeEach(() => {
+    ({ command } = setupCommandTest());
   });
 
   it("includes all messages in the prompt", async () => {
@@ -63,8 +91,18 @@ describe("CreateLinearIssueCommand", () => {
     await command.execute(messages);
 
     expect(generateObject).toHaveBeenCalledOnce();
-    const callArgs = vi.mocked(generateObject).mock.calls[0][0] as { messages: unknown[] };
-    expect(callArgs.messages).toHaveLength(3);
+    const callArgs = vi.mocked(generateObject).mock.calls[FIRST_CALL][FIRST_ARG] as {
+      messages: unknown[];
+    };
+    expect(callArgs.messages).toHaveLength(EXPECTED_MESSAGE_COUNT);
+  });
+});
+
+describe("CreateLinearIssueCommand - generateObject options", () => {
+  let command: CreateLinearIssueCommand;
+
+  beforeEach(() => {
+    ({ command } = setupCommandTest());
   });
 
   it("calls generateObject with the correct model and system prompt", async () => {
@@ -75,7 +113,7 @@ describe("CreateLinearIssueCommand", () => {
     await command.execute([makeTestMessage("report", false)]);
 
     expect(generateObject).toHaveBeenCalledOnce();
-    const callArgs = vi.mocked(generateObject).mock.calls[0][0] as {
+    const callArgs = vi.mocked(generateObject).mock.calls[FIRST_CALL][FIRST_ARG] as {
       model: unknown;
       system: string;
     };

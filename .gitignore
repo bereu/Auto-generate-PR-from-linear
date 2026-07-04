@@ -34,3 +34,4 @@ dist-ssr
 
 # APM dependencies
 apm_modules/
+.tokensave

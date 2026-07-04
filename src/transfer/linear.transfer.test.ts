@@ -10,23 +10,35 @@ vi.mock("@linear/sdk", () => ({
 
 import { LinearTransfer } from "@/transfer/linear.transfer";
 
-describe("LinearTransfer.fetchComments", () => {
+function setupLinearTransfer(): {
+  transfer: LinearTransfer;
+  originalApiKey: string | undefined;
+} {
+  mockIssue.mockReset();
+  const originalApiKey = process.env.LINEAR_API_KEY;
+  process.env.LINEAR_API_KEY = "test-key";
+  const transfer = new LinearTransfer();
+  return { transfer, originalApiKey };
+}
+
+function restoreApiKey(originalApiKey: string | undefined): void {
+  if (originalApiKey === undefined) {
+    delete process.env.LINEAR_API_KEY;
+  } else {
+    process.env.LINEAR_API_KEY = originalApiKey;
+  }
+}
+
+describe("LinearTransfer.fetchComments - with comments", () => {
   let transfer: LinearTransfer;
   let originalApiKey: string | undefined;
 
   beforeEach(() => {
-    mockIssue.mockReset();
-    originalApiKey = process.env.LINEAR_API_KEY;
-    process.env.LINEAR_API_KEY = "test-key";
-    transfer = new LinearTransfer();
+    ({ transfer, originalApiKey } = setupLinearTransfer());
   });
 
   afterEach(() => {
-    if (originalApiKey === undefined) {
-      delete process.env.LINEAR_API_KEY;
-    } else {
-      process.env.LINEAR_API_KEY = originalApiKey;
-    }
+    restoreApiKey(originalApiKey);
   });
 
   it("returns comment bodies for an issue", async () => {
@@ -38,6 +50,19 @@ describe("LinearTransfer.fetchComments", () => {
 
     const result = await transfer.fetchComments("issue-123");
     expect(result).toEqual(["Agent starting implementation", "Some other comment"]);
+  });
+});
+
+describe("LinearTransfer.fetchComments - without comments", () => {
+  let transfer: LinearTransfer;
+  let originalApiKey: string | undefined;
+
+  beforeEach(() => {
+    ({ transfer, originalApiKey } = setupLinearTransfer());
+  });
+
+  afterEach(() => {
+    restoreApiKey(originalApiKey);
   });
 
   it("returns empty array when issue has no comments", async () => {

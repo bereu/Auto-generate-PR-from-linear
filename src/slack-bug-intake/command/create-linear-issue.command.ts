@@ -5,11 +5,9 @@ import { z } from "zod";
 import type { Message } from "chat";
 import { BugReport } from "@/domain/bug-report/bug-report";
 import { LinearTransfer } from "@/transfer/linear.transfer";
-import {
-  FORMAT_SYSTEM_PROMPT,
-  LINEAR_AGENT_LABEL,
-} from "@/slack-bug-intake/slack-bug-intake.constants";
+import { LINEAR_AGENT_LABEL } from "@/slack-bug-intake/slack-bug-intake.constants";
 import { LINEAR_STATES } from "@/repos.config";
+import { langfuse } from "@/util/langfuse";
 
 const FormatSchema = z.object({
   title: z.string(),
@@ -28,7 +26,7 @@ export class CreateLinearIssueCommand {
 
     const { object } = await generateObject({
       model: anthropic("claude-haiku-4-5-20251001"),
-      system: FORMAT_SYSTEM_PROMPT,
+      system: await langfuse.fetchFormatPrompt(),
       messages,
       schema: FormatSchema,
     });

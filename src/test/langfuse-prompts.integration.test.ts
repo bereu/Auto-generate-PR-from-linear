@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { Langfuse as LangfuseSDK } from "langfuse";
 import { LANGFUSE_PROMPT_NAMES } from "@/constants/mastra.constants";
 
+const MIN_PROMPT_LENGTH = 0;
+
 /**
  * Integration test: verifies every migrated prompt is actually served from
  * Langfuse (production label) rather than the local fallback. Requires live
@@ -31,7 +33,7 @@ describe.skipIf(!hasCredentials)("Langfuse prompt migration (integration)", () =
 
       expect(prompt.isFallback).toBe(false);
       expect(prompt.prompt).not.toBe("LOCAL_FALLBACK");
-      expect(prompt.prompt.length).toBeGreaterThan(0);
+      expect(prompt.prompt.length).toBeGreaterThan(MIN_PROMPT_LENGTH);
     },
   );
 });

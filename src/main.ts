@@ -27,6 +27,6 @@ async function bootstrap(): Promise<void> {
 }
 
 bootstrap().catch((err: Error) => {
-  logger.error(`Fatal: ${err.message}`);
+  logger.critical(err);
   process.exit(EXIT_CODE_ERROR);
 });
