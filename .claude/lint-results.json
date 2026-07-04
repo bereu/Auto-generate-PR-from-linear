@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0.0",
+  "timestamp": "2026-03-30T05:17:24.645032+00:00",
+  "summary": {
+    "passed": false,
+    "exitCodes": {
+      "oxlint": 1,
+      "tsc": 127,
+      "jscpd": 1
+    }
+  },
+  "lint": {
+    "tool": "oxlint",
+    "exitCode": 1,
+    "diagnostics": [],
+    "count": 0,
+    "meta": {}
+  },
+  "typecheck": {
+    "tool": "tsc",
+    "exitCode": 127,
+    "diagnostics": [],
+    "count": 0
+  },
+  "duplicates": {
+    "tool": "jscpd",
+    "exitCode": 1,
+    "report": {}
+  }
+}

@@ -1,0 +1,683 @@
+{
+  "schemaVersion": "1.0.0",
+  "timestamp": "2026-03-30T05:34:04.383714+00:00",
+  "summary": {
+    "passed": false,
+    "exitCodes": {
+      "oxlint": 1,
+      "tsc": 2,
+      "jscpd": 0
+    }
+  },
+  "lint": {
+    "tool": "oxlint",
+    "exitCode": 1,
+    "diagnostics": [],
+    "count": 0,
+    "meta": {}
+  },
+  "typecheck": {
+    "tool": "tsc",
+    "exitCode": 2,
+    "diagnostics": [
+      {
+        "file": "src/lint-test-file.ts",
+        "line": 20,
+        "column": 7,
+        "severity": "error",
+        "code": "TS2322",
+        "message": "Type 'string' is not assignable to type 'number'."
+      },
+      {
+        "file": "src/lint-test-file.ts",
+        "line": 20,
+        "column": 7,
+        "severity": "error",
+        "code": "TS6133",
+        "message": "'x' is declared but its value is never read."
+      }
+    ],
+    "count": 2
+  },
+  "duplicates": {
+    "tool": "jscpd",
+    "exitCode": 0,
+    "report": {
+      "statistics": {
+        "detectionDate": "2026-03-30T05:34:04.197Z",
+        "formats": {
+          "typescript": {
+            "sources": {
+              "./src/domain/issue/value/issue-title.ts": {
+                "lines": 24,
+                "tokens": 189,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/domain/issue/value/issue-id.ts": {
+                "lines": 19,
+                "tokens": 151,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/constants/message/error/system.error.ts": {
+                "lines": 10,
+                "tokens": 78,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/constants/message/error/domain.error.ts": {
+                "lines": 5,
+                "tokens": 43,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/slack-bug-intake/query/evaluate-bug-report.query.ts": {
+                "lines": 32,
+                "tokens": 304,
+                "sources": 1,
+                "clones": 1,
+                "duplicatedLines": 8,
+                "duplicatedTokens": 101,
+                "percentage": 25,
+                "percentageTokens": 33.22,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/slack-bug-intake/query/evaluate-bug-report.query.test.ts": {
+                "lines": 100,
+                "tokens": 976,
+                "sources": 1,
+                "clones": 2,
+                "duplicatedLines": 21,
+                "duplicatedTokens": 199,
+                "percentage": 21,
+                "percentageTokens": 20.39,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/slack-bug-intake/coordinator/slack-bot.coordinator.ts": {
+                "lines": 93,
+                "tokens": 987,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/slack-bug-intake/coordinator/slack-bot.coordinator.test.ts": {
+                "lines": 113,
+                "tokens": 1164,
+                "sources": 1,
+                "clones": 2,
+                "duplicatedLines": 14,
+                "duplicatedTokens": 150,
+                "percentage": 12.39,
+                "percentageTokens": 12.89,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/slack-bug-intake/controller/slack-events.controller.ts": {
+                "lines": 14,
+                "tokens": 160,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/slack-bug-intake/command/create-linear-issue.command.ts": {
+                "lines": 41,
+                "tokens": 407,
+                "sources": 1,
+                "clones": 1,
+                "duplicatedLines": 8,
+                "duplicatedTokens": 101,
+                "percentage": 19.51,
+                "percentageTokens": 24.82,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/slack-bug-intake/command/create-linear-issue.command.test.ts": {
+                "lines": 83,
+                "tokens": 854,
+                "sources": 1,
+                "clones": 2,
+                "duplicatedLines": 21,
+                "duplicatedTokens": 199,
+                "percentage": 25.3,
+                "percentageTokens": 23.3,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/linear-webhook/repository/issue.repository.ts": {
+                "lines": 31,
+                "tokens": 365,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/linear-webhook/controller/linear-webhook.controller.ts": {
+                "lines": 71,
+                "tokens": 546,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/linear-webhook/command/suspend-issue.command.ts": {
+                "lines": 11,
+                "tokens": 141,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/linear-webhook/command/implement-issue.command.ts": {
+                "lines": 59,
+                "tokens": 498,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/domain/issue/linear-issue.ts": {
+                "lines": 49,
+                "tokens": 379,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/domain/issue/linear-issue.test.ts": {
+                "lines": 98,
+                "tokens": 1156,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/domain/bug-report/bug-report.ts": {
+                "lines": 21,
+                "tokens": 188,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/util/timemanagement.ts": {
+                "lines": 46,
+                "tokens": 369,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/util/prompt-loader.ts": {
+                "lines": 33,
+                "tokens": 339,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/util/logger.ts": {
+                "lines": 16,
+                "tokens": 115,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/util/langsmith.ts": {
+                "lines": 68,
+                "tokens": 610,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/transfer/linear.transfer.ts": {
+                "lines": 94,
+                "tokens": 1046,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/test/message-helper.ts": {
+                "lines": 16,
+                "tokens": 196,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/slack-bug-intake/slack-bug-intake.module.ts": {
+                "lines": 16,
+                "tokens": 129,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/slack-bug-intake/slack-bug-intake.constants.ts": {
+                "lines": 31,
+                "tokens": 83,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/linear-webhook/linear-webhook.module.ts": {
+                "lines": 8,
+                "tokens": 73,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/constants/agent.constants.ts": {
+                "lines": 18,
+                "tokens": 149,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/sync-repos.ts": {
+                "lines": 169,
+                "tokens": 1558,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/repos.config.ts": {
+                "lines": 25,
+                "tokens": 247,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/main.ts": {
+                "lines": 28,
+                "tokens": 274,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/main.local.ts": {
+                "lines": 51,
+                "tokens": 456,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/main.dev.ts": {
+                "lines": 23,
+                "tokens": 184,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/lint-test-file.ts": {
+                "lines": 21,
+                "tokens": 143,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/linear.ts": {
+                "lines": 17,
+                "tokens": 189,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/create-app.ts": {
+                "lines": 31,
+                "tokens": 324,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/app.module.ts": {
+                "lines": 7,
+                "tokens": 67,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              },
+              "./src/agent.ts": {
+                "lines": 154,
+                "tokens": 1323,
+                "sources": 1,
+                "clones": 0,
+                "duplicatedLines": 0,
+                "duplicatedTokens": 0,
+                "percentage": 0,
+                "percentageTokens": 0,
+                "newDuplicatedLines": 0,
+                "newClones": 0
+              }
+            },
+            "total": {
+              "lines": 1746,
+              "tokens": 16460,
+              "sources": 38,
+              "clones": 4,
+              "duplicatedLines": 36,
+              "duplicatedTokens": 375,
+              "percentage": 2.06,
+              "percentageTokens": 2.28,
+              "newDuplicatedLines": 0,
+              "newClones": 0
+            }
+          }
+        },
+        "total": {
+          "lines": 1746,
+          "tokens": 16460,
+          "sources": 38,
+          "clones": 4,
+          "duplicatedLines": 36,
+          "duplicatedTokens": 375,
+          "percentage": 2.06,
+          "percentageTokens": 2.28,
+          "newDuplicatedLines": 0,
+          "newClones": 0
+        }
+      },
+      "duplicates": [
+        {
+          "format": "typescript",
+          "lines": 8,
+          "fragment": "]);\n    await (coordinator as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(\n      thread,\n    );\n\n    expect(thread.post).toHaveBeenCalledWith(FALLBACK_MESSAGE);\n    expect(thread.unsubscribe).toHaveBeenCalledOnce();\n  }",
+          "tokens": 0,
+          "firstFile": {
+            "name": "src/slack-bug-intake/coordinator/slack-bot.coordinator.test.ts",
+            "start": 106,
+            "end": 113,
+            "startLoc": {
+              "line": 106,
+              "column": 2,
+              "position": 1083
+            },
+            "endLoc": {
+              "line": 113,
+              "column": 2,
+              "position": 1158
+            }
+          },
+          "secondFile": {
+            "name": "src/slack-bug-intake/coordinator/slack-bot.coordinator.test.ts",
+            "start": 89,
+            "end": 97,
+            "startLoc": {
+              "line": 89,
+              "column": 12,
+              "position": 920
+            },
+            "endLoc": {
+              "line": 97,
+              "column": 7,
+              "position": 996
+            }
+          }
+        },
+        {
+          "format": "typescript",
+          "lines": 9,
+          "fragment": "}> {\n    const messages = recentMessages.map((m) => ({\n      role: (m.author.isMe ? \"assistant\" : \"user\") as \"user\" | \"assistant\",\n      content: m.text,\n    }));\n\n    const { object } = await generateObject({\n      model: anthropic(\"claude-haiku-4-5-20251001\"),\n      system: FORMAT_SYSTEM_PROMPT",
+          "tokens": 0,
+          "firstFile": {
+            "name": "src/slack-bug-intake/command/create-linear-issue.command.ts",
+            "start": 22,
+            "end": 30,
+            "startLoc": {
+              "line": 22,
+              "column": 2,
+              "position": 214
+            },
+            "endLoc": {
+              "line": 30,
+              "column": 21,
+              "position": 315
+            }
+          },
+          "secondFile": {
+            "name": "src/slack-bug-intake/query/evaluate-bug-report.query.ts",
+            "start": 18,
+            "end": 26,
+            "startLoc": {
+              "line": 18,
+              "column": 3,
+              "position": 174
+            },
+            "endLoc": {
+              "line": 26,
+              "column": 21,
+              "position": 275
+            }
+          }
+        },
+        {
+          "format": "typescript",
+          "lines": 14,
+          "fragment": ";\nimport { makeTestMessage } from \"@/test/message-helper\";\n\nvi.mock(\"ai\", () => ({\n  generateObject: vi.fn(),\n}));\n\nvi.mock(\"@ai-sdk/anthropic\", () => ({\n  anthropic: vi.fn(() => \"mock-model\"),\n}));\n\nimport { generateObject } from \"ai\";\n\ndescribe(\"CreateLinearIssueCommand\"",
+          "tokens": 0,
+          "firstFile": {
+            "name": "src/slack-bug-intake/command/create-linear-issue.command.test.ts",
+            "start": 2,
+            "end": 15,
+            "startLoc": {
+              "line": 2,
+              "column": 57,
+              "position": 36
+            },
+            "endLoc": {
+              "line": 15,
+              "column": 27,
+              "position": 138
+            }
+          },
+          "secondFile": {
+            "name": "src/slack-bug-intake/query/evaluate-bug-report.query.test.ts",
+            "start": 2,
+            "end": 15,
+            "startLoc": {
+              "line": 2,
+              "column": 53,
+              "position": 36
+            },
+            "endLoc": {
+              "line": 15,
+              "column": 25,
+              "position": 138
+            }
+          }
+        },
+        {
+          "format": "typescript",
+          "lines": 9,
+          "fragment": ".execute([makeTestMessage(\"report\", false)]);\n\n    expect(generateObject).toHaveBeenCalledOnce();\n    const callArgs = vi.mocked(generateObject).mock.calls[0][0] as {\n      model: unknown;\n      system: string;\n    };\n    expect(callArgs.model).toBe(\"mock-model\");\n    expect(callArgs.system).toContain(\"bug report formatter\"",
+          "tokens": 0,
+          "firstFile": {
+            "name": "src/slack-bug-intake/command/create-linear-issue.command.test.ts",
+            "start": 74,
+            "end": 82,
+            "startLoc": {
+              "line": 74,
+              "column": 8,
+              "position": 746
+            },
+            "endLoc": {
+              "line": 82,
+              "column": 23,
+              "position": 843
+            }
+          },
+          "secondFile": {
+            "name": "src/slack-bug-intake/query/evaluate-bug-report.query.test.ts",
+            "start": 91,
+            "end": 99,
+            "startLoc": {
+              "line": 91,
+              "column": 6,
+              "position": 868
+            },
+            "endLoc": {
+              "line": 99,
+              "column": 23,
+              "position": 965
+            }
+          }
+        }
+      ]
+    }
+  }
+}
