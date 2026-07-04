@@ -1,14 +1,12 @@
 import { Injectable } from "@nestjs/common";
-import { generateObject } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-import { z } from "zod";
+import type { PublicSchema } from "@mastra/core/schema";
+import type { ModelMessage } from "ai";
 import type { Message } from "chat";
-import { TRIAGE_SYSTEM_PROMPT } from "@/slack-bug-intake/slack-bug-intake.constants";
-
-const EvaluationSchema = z.object({
-  isComplete: z.boolean(),
-  clarifyingQuestion: z.string().nullable(),
-});
+import {
+  bugTriageAgent,
+  EvaluationSchema,
+  type Evaluation,
+} from "@/slack-bug-intake/agent/bug-triage.agent";
 
 @Injectable()
 export class EvaluateBugReportQuery {
@@ -16,16 +14,16 @@ export class EvaluateBugReportQuery {
     isComplete: boolean;
     clarifyingQuestion: string | null;
   }> {
-    const messages = recentMessages.map((m) => ({
-      role: (m.author.isMe ? "assistant" : "user") as "user" | "assistant",
+    const messages: ModelMessage[] = recentMessages.map((m) => ({
+      role: m.author.isMe ? "assistant" : "user",
       content: m.text,
-    }));
+    })) as ModelMessage[];
 
-    const { object } = await generateObject({
-      model: anthropic("claude-haiku-4-5-20251001"),
-      system: TRIAGE_SYSTEM_PROMPT,
-      messages,
-      schema: EvaluationSchema,
+    // System prompt is resolved by the agent from Langfuse (with local fallback).
+    // Cast bridges the zod v4 schema to Mastra's PublicSchema type (dual-zod
+    // typing mismatch); the schema is structurally valid at runtime.
+    const { object } = await bugTriageAgent.generate(messages, {
+      structuredOutput: { schema: EvaluationSchema as unknown as PublicSchema<Evaluation> },
     });
 
     return object;

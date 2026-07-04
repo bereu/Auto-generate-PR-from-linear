@@ -12,6 +12,8 @@ export function validateEnv(): void {
     "SLACK_BOT_TOKEN",
     "SLACK_SIGNING_SECRET",
   ] as const;
+  // LANGFUSE_* are intentionally optional: the langfuse util falls back to the
+  // local TRIAGE_SYSTEM_PROMPT when Langfuse is unset/unreachable.
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length > 0) {
     logger.error(`❌ 環境変数が不足しています: ${missing.join(", ")}`);

@@ -9,6 +9,7 @@ import {
   FALLBACK_MESSAGE,
 } from "@/slack-bug-intake/slack-bug-intake.constants";
 import { webhookAdapter } from "@/util/webhook-adapter";
+import { logger } from "@/util/logger";
 
 @Injectable()
 export class SlackBotCoordinator implements OnModuleInit {
@@ -30,21 +31,36 @@ export class SlackBotCoordinator implements OnModuleInit {
   }
 
   private async handleIncoming(thread: Thread): Promise<void> {
-    await thread.refresh();
-    const { isComplete, clarifyingQuestion } = await this.evaluateBugReport.execute(
-      thread.recentMessages,
-    );
-    const botTurns = thread.recentMessages.filter((m) => m.author.isMe).length;
+    try {
+      await thread.refresh();
+      const { isComplete, clarifyingQuestion } = await this.evaluateBugReport.execute(
+        thread.recentMessages,
+      );
+      const botTurns = thread.recentMessages.filter((m) => m.author.isMe).length;
+      logger.info(
+        `[slack-triage] evaluated: isComplete=${isComplete} hasQuestion=${clarifyingQuestion !== null} botTurns=${botTurns} messages=${thread.recentMessages.length}`,
+      );
 
-    if (isComplete) {
-      const { url } = await this.createLinearIssue.execute(thread.recentMessages);
-      await thread.post(`Linear issue created: ${url}`);
-      await thread.unsubscribe();
-    } else if (botTurns < MAX_CLARIFICATION_ROUNDS && clarifyingQuestion !== null) {
-      await thread.post(clarifyingQuestion);
-    } else {
-      await thread.post(FALLBACK_MESSAGE);
-      await thread.unsubscribe();
+      if (isComplete) {
+        const { url } = await this.createLinearIssue.execute(thread.recentMessages);
+        logger.info(`[slack-triage] Linear issue created: ${url}`);
+        await thread.post(`Linear issue created: ${url}`);
+        await thread.unsubscribe();
+      } else if (botTurns < MAX_CLARIFICATION_ROUNDS && clarifyingQuestion !== null) {
+        logger.info(`[slack-triage] posting clarifying question`);
+        await thread.post(clarifyingQuestion);
+      } else {
+        logger.info(
+          `[slack-triage] rounds exhausted or no question — posting fallback and unsubscribing`,
+        );
+        await thread.post(FALLBACK_MESSAGE);
+        await thread.unsubscribe();
+      }
+    } catch (err) {
+      // BE-003: do not swallow system errors without logging.
+      logger.error(
+        `[slack-triage] handleIncoming failed: ${(err as Error).message}\n${(err as Error).stack ?? ""}`,
+      );
     }
   }
 

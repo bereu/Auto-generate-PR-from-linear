@@ -9,6 +9,19 @@ import { validateEnv, createApp } from "@/create-app";
 import { logger } from "@/util/logger";
 import { WEBHOOK_PORT } from "@/repos.config";
 
+/**
+ * Reads the requested localtunnel subdomain from `--subdomain <name>` (CLI arg)
+ * or the `LOCALTUNNEL_SUBDOMAIN` env var. A fixed subdomain keeps the public URL
+ * stable across restarts so Slack/Linear Request URLs don't need re-updating
+ * (see docs/adr/GEN-003). The subdomain is best-effort: if it is already taken
+ * on loca.lt, localtunnel falls back to a random URL.
+ */
+function resolveSubdomain(): string | undefined {
+  const idx = process.argv.indexOf("--subdomain");
+  if (idx !== -1 && process.argv[idx + 1]) return process.argv[idx + 1];
+  return process.env.LOCALTUNNEL_SUBDOMAIN || undefined;
+}
+
 async function bootstrap(): Promise<void> {
   validateEnv();
   logger.info("🧪 [LOCAL] Starting webhook server (repo sync skipped)");
@@ -17,14 +30,30 @@ async function bootstrap(): Promise<void> {
   await app.listen(WEBHOOK_PORT);
   logger.info(`✅ Webhook server on port ${WEBHOOK_PORT}`);
 
-  logger.info("🌐 Opening public tunnel...");
-  const tunnel = await localtunnel({ port: WEBHOOK_PORT });
+  const subdomain = resolveSubdomain();
+  logger.info(
+    subdomain
+      ? `🌐 Opening public tunnel (subdomain: ${subdomain})...`
+      : "🌐 Opening public tunnel (random subdomain)...",
+  );
+  const tunnel = await localtunnel({ port: WEBHOOK_PORT, subdomain });
+
+  // The requested subdomain is best-effort: if it is taken, loca.lt returns a
+  // random URL. Warn loudly so the URL registered in Slack/Linear is never wrong.
+  if (subdomain && !tunnel.url.includes(`//${subdomain}.`)) {
+    logger.warn(
+      `⚠️  Requested subdomain "${subdomain}" was unavailable — got a RANDOM URL instead. ` +
+        `Use the Public URL below (not the requested subdomain) and update your Slack/Linear webhooks.`,
+    );
+  }
 
   const webhookUrl = `${tunnel.url}/webhook`;
+  const slackUrl = `${tunnel.url}/slack/events`;
   const secret = process.env.LINEAR_WEBHOOK_SECRET!;
 
   logger.info(`\n${"─".repeat(54)}`);
   logger.info(`🌐 Public URL: ${tunnel.url}`);
+  logger.info(`   Slack Events Request URL: ${slackUrl}`);
   logger.info(`${"─".repeat(54)}`);
   logger.info(`Register this URL in Linear:`);
   logger.info(`  Settings → API → Webhooks → New Webhook`);

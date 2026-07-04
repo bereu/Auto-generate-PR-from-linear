@@ -18,15 +18,21 @@ sequenceDiagram
     autonumber
     actor Human
     participant Slack
-    participant App as fly.io App (NestJS)
+    participant SlackInt as Slack Integration (Chat SDK)
+    participant Langfuse
+    participant App as App Core (NestJS)
     participant Linear
     participant Claude as Claude Agent SDK
     participant GitHub
 
     Human->>Slack: Posts bug report message
-    Slack->>App: Slack Events API webhook (message event)
-    App->>Slack: Ask clarifying questions (thread reply)
+    Slack->>SlackInt: Slack Events API webhook (message event)
+    SlackInt->>Langfuse: Fetch system prompt (or fallback)
+    Langfuse-->>SlackInt: Return system prompt
+    SlackInt->>Slack: Ask clarifying questions (thread reply)
+    SlackInt->>Langfuse: Log triage trace
     Human->>Slack: Answers clarifying questions
+    SlackInt->>App: Dispatch triage-ready report
     App->>Linear: Create Issue (label: agent, state: Todo)
     Linear->>App: Linear webhook (issue created)
     App->>App: Verify label == agent && state == Todo
@@ -50,8 +56,10 @@ sequenceDiagram
 #### Slack Integration (Bug Intake & Clarification)
 
 - Receives bug reports via Slack Events API (\`message\` events in a designated channel).
+- Powered by the **Chat SDK** (\`chat\` and \`@chat-adapter/slack\` / \`@chat-adapter/state-memory\`) to abstract Slack API plumbing (URL verification challenges, signature verification, and event routing) into high-level event listeners like \`onNewMention\` and \`onSubscribedMessage\`.
+- Manages thread-based conversational history using the Chat SDK state adapter to support multi-turn triage interactions.
 - The app replies in-thread to ask structured clarifying questions (reproduction steps, environment, expected vs actual behaviour).
-- Once clarification is complete, the app creates a Linear issue with the refined description.
+- Once clarification is complete, the app dispatches the completed triage-ready report to create a Linear issue.
 - Uses \`SLACK_BOT_TOKEN\` and \`SLACK_SIGNING_SECRET\` environment variables.
 
 #### Linear (Issue Tracking)
@@ -73,6 +81,12 @@ sequenceDiagram
 - Each issue gets its own branch: \`claude/issue-<issueId>\`.
 - Claude pushes the branch and opens a PR linking back to the Linear issue.
 - Target repository is resolved from issue text against configured REPOS.
+
+#### Langfuse (Prompt Management & Observability)
+
+- Stores and versions LLM prompt templates (such as \`bug-triage-system\`) to allow prompt refinement without app redeployment.
+- Retrieves and compiles prompt templates dynamically at runtime, falling back to a local default prompt if the API is slow or unreachable.
+- Instruments and traces LLM execution, linking prompt versions to telemetry to monitor agent performance, latency, and costs.
 
 ### Failure Modes
 

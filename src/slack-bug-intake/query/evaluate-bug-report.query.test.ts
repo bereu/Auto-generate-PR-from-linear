@@ -2,15 +2,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
 import { makeTestMessage } from "@/test/message-helper";
 
-vi.mock("ai", () => ({
-  generateObject: vi.fn(),
-}));
+const { generateMock } = vi.hoisted(() => ({ generateMock: vi.fn() }));
 
-vi.mock("@ai-sdk/anthropic", () => ({
-  anthropic: vi.fn(() => "mock-model"),
-}));
-
-import { generateObject } from "ai";
+vi.mock("@/slack-bug-intake/agent/bug-triage.agent", async () => {
+  const { z } = await import("zod");
+  return {
+    bugTriageAgent: { generate: generateMock },
+    EvaluationSchema: z.object({
+      isComplete: z.boolean(),
+      clarifyingQuestion: z.string().nullable(),
+    }),
+  };
+});
 
 describe("EvaluateBugReportQuery", () => {
   let query: EvaluateBugReportQuery;
@@ -21,9 +24,7 @@ describe("EvaluateBugReportQuery", () => {
   });
 
   it("returns isComplete true and null question when report is complete", async () => {
-    vi.mocked(generateObject).mockResolvedValue({
-      object: { isComplete: true, clarifyingQuestion: null },
-    } as never);
+    generateMock.mockResolvedValue({ object: { isComplete: true, clarifyingQuestion: null } });
 
     const messages = [makeTestMessage("Here is my complete bug report with all details.", false)];
     const result = await query.execute(messages);
@@ -33,12 +34,12 @@ describe("EvaluateBugReportQuery", () => {
   });
 
   it("returns isComplete false with question when steps to reproduce are missing", async () => {
-    vi.mocked(generateObject).mockResolvedValue({
+    generateMock.mockResolvedValue({
       object: {
         isComplete: false,
         clarifyingQuestion: "Could you provide the steps to reproduce this issue?",
       },
-    } as never);
+    });
 
     const messages = [makeTestMessage("The button is broken.", false)];
     const result = await query.execute(messages);
@@ -47,25 +48,10 @@ describe("EvaluateBugReportQuery", () => {
     expect(result.clarifyingQuestion).toBe("Could you provide the steps to reproduce this issue?");
   });
 
-  it("returns isComplete false with question when environment is missing", async () => {
-    vi.mocked(generateObject).mockResolvedValue({
-      object: {
-        isComplete: false,
-        clarifyingQuestion: "What OS and browser are you using?",
-      },
-    } as never);
-
-    const messages = [makeTestMessage("Login fails when I click submit.", false)];
-    const result = await query.execute(messages);
-
-    expect(result.isComplete).toBe(false);
-    expect(result.clarifyingQuestion).toBe("What OS and browser are you using?");
-  });
-
   it("maps bot messages to role assistant and user messages to role user", async () => {
-    vi.mocked(generateObject).mockResolvedValue({
+    generateMock.mockResolvedValue({
       object: { isComplete: false, clarifyingQuestion: "What environment?" },
-    } as never);
+    });
 
     const messages = [
       makeTestMessage("The button is broken.", false),
@@ -75,27 +61,23 @@ describe("EvaluateBugReportQuery", () => {
 
     await query.execute(messages);
 
-    const callArgs = vi.mocked(generateObject).mock.calls[0][0] as { messages: unknown[] };
-    expect(callArgs.messages).toEqual([
+    const callArgs = generateMock.mock.calls[0][0] as unknown[];
+    expect(callArgs).toEqual([
       { role: "user", content: "The button is broken." },
       { role: "assistant", content: "Can you describe the expected behaviour?" },
       { role: "user", content: "I expected it to submit the form." },
     ]);
   });
 
-  it("calls generateObject with the correct model and system prompt", async () => {
-    vi.mocked(generateObject).mockResolvedValue({
+  it("passes the structured output schema to the agent", async () => {
+    generateMock.mockResolvedValue({
       object: { isComplete: true, clarifyingQuestion: null },
-    } as never);
+    });
 
     await query.execute([makeTestMessage("report", false)]);
 
-    expect(generateObject).toHaveBeenCalledOnce();
-    const callArgs = vi.mocked(generateObject).mock.calls[0][0] as {
-      model: unknown;
-      system: string;
-    };
-    expect(callArgs.model).toBe("mock-model");
-    expect(callArgs.system).toContain("bug triage assistant");
+    expect(generateMock).toHaveBeenCalledOnce();
+    const options = generateMock.mock.calls[0][1] as { structuredOutput: { schema: unknown } };
+    expect(options.structuredOutput.schema).toBeDefined();
   });
 });

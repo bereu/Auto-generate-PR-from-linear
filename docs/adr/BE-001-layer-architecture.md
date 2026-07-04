@@ -100,7 +100,7 @@ sequenceDiagram
 4.  **Command** (Write-only): Data modification.
 5.  **Repository**: Aggregates data for domain-unit access. Accesses DataSource and Transfer.
 6.  **DataSource**: 1:1 mapping to database tables (RDB).
-7.  **Transfer**: Wrapper for accessing external services (e.g., Firebase, third-party APIs). It is accessed by the Repository layer and handles the communication and data mapping to/from external services.
+7.  **Transfer**: Wrapper for accessing **business** external services (e.g., Firebase, Slack, Linear, GitHub). It is accessed by the Repository layer and handles the communication and data mapping to/from external services. The Transfer layer is **only** for business external services that a Repository orchestrates to reconstruct Domain objects. It is **not** the home for cross-cutting infrastructure clients — observability/tracing, prompt management, and agent frameworks (e.g., Langfuse, Mastra) belong in `src/util/` as singletons even though they call external APIs (see `GEN-002-project-folder-structure.md`).
 
 ### Naming Convention
 
@@ -119,6 +119,7 @@ We prioritize naming that reflects **business logic** and domain language over t
 - Use the **Command** layer for all write/modification logic.
 - **Always return Domain objects** from both Query and Command layers.
 - Keep each function small with a single responsibility.
+- Place cross-cutting infrastructure clients (logging, tracing/observability, prompt management, agent frameworks) in `src/util/` as singletons; any layer may reference them directly.
 
 ### Don't
 
@@ -126,6 +127,7 @@ We prioritize naming that reflects **business logic** and domain language over t
 - Access the **DataSource**, **Repository**, or **Transfer** directly from the **Controller**.
 - Access the RDB from any layer other than **Repository** or **DataSource**.
 - Perform write operations within the **Query** layer.
+- Route observability, prompt-management, or agent-framework clients through the **Transfer** layer just because they call an external API. Transfer is reserved for business external services accessed by a Repository to reconstruct Domain objects; cross-cutting infrastructure clients belong in `src/util/`.
 
 ## Consequences
 
@@ -150,6 +152,7 @@ This decision will be enforced through architectural reviews and automated linti
 
 ## References
 
+- [Project Folder Structure](./GEN-002-project-folder-structure.md) — where each layer's files live, and the `src/util/` singleton rule for cross-cutting infrastructure clients
 - CQRS Pattern
 - Domain-Driven Design (Validation)
 - Clean Architecture
