@@ -4,9 +4,9 @@ export const MAX_CLARIFICATION_ROUNDS = 5;
 
 export const LINEAR_AGENT_LABEL = "agent";
 
-export const FALLBACK_MESSAGE =
-  "I wasn't able to gather all the details I need. " +
-  "Please file the issue directly in Linear with as much detail as possible.";
+export const WORKFLOW_ERROR_MESSAGE =
+  "Something went wrong while processing your bug report. " +
+  "Our team has been notified. Please try again shortly or file the issue directly in Linear.";
 
 export const TRIAGE_SYSTEM_PROMPT = `
 You are a bug triage assistant. Evaluate whether the conversation contains:

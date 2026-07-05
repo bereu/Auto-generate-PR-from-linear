@@ -3,10 +3,7 @@ import { createWorkflow, createStep } from "@mastra/core/workflows";
 import type { Thread } from "chat";
 import type { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
 import type { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
-import {
-  MAX_CLARIFICATION_ROUNDS,
-  FALLBACK_MESSAGE,
-} from "@/slack-bug-intake/slack-bug-intake.constants";
+import { MAX_CLARIFICATION_ROUNDS } from "@/slack-bug-intake/slack-bug-intake.constants";
 import { WORKFLOW_NAMES, WORKFLOW_STEP_IDS } from "@/constants/mastra.constants";
 import { logger } from "@/util/logger";
 
@@ -107,29 +104,42 @@ const hasQuestionAndRoundsCondition = async (params: {
 };
 
 /**
- * Step 4: Post fallback message and unsubscribe.
+ * Step 4: Escalate an unrecoverable triage as a workflow error.
  * Executed when rounds are exhausted or no clarifying question can be formed.
+ *
+ * Follows Mastra's official error-handling pattern — throwing inside `execute`
+ * exits the workflow with a `failed` status
+ * (https://mastra.ai/docs/workflows/error-handling). The thread is unsubscribed
+ * first so the clarify loop stops, then the error is thrown; the coordinator
+ * inspects `result.status === "failed"`, reports it via the logger util (BE-003),
+ * and notifies the reporter in-thread.
  */
-const fallbackStep = createStep({
-  id: WORKFLOW_STEP_IDS.fallback,
-  description: "Post fallback message and unsubscribe",
+const escalateStep = createStep({
+  id: WORKFLOW_STEP_IDS.escalate,
+  description: "Escalate unrecoverable triage as a workflow error",
   inputSchema: EvaluationResultSchema,
   outputSchema: z.object({}),
   async execute({ inputData: _inputData, requestContext }) {
     const thread = requestContext.get<"thread", Thread>("thread");
-    logger.info(
-      `[slack-triage] rounds exhausted or no question — posting fallback and unsubscribing`,
-    );
-    await thread.post(FALLBACK_MESSAGE);
+    // Local breadcrumb only (info → not forwarded to Rollbar). The single error
+    // report happens once at the coordinator when the run resolves failed (BE-003).
+    logger.info(`[slack-triage] rounds exhausted or no question — escalating as workflow error`);
     await thread.unsubscribe();
-    return {};
+    throw new Error(
+      "Bug triage could not gather sufficient details after maximum clarification rounds",
+    );
   },
 });
 
 /**
- * Always-true condition (fallback case, executed when other branches don't match).
+ * Fallback condition: neither complete nor (incomplete + question + rounds remaining).
+ * Ensures exactly ONE branch runs per turn (disjoint partition with completion and ask conditions).
  */
-const alwaysTrueCondition = async (): Promise<boolean> => true;
+const fallbackCondition = async (params: { inputData: EvaluationResult }): Promise<boolean> => {
+  const complete = await isCompletionCondition(params);
+  const askable = await hasQuestionAndRoundsCondition(params);
+  return !complete && !askable;
+};
 
 /**
  * Bug Triage Workflow
@@ -139,7 +149,8 @@ const alwaysTrueCondition = async (): Promise<boolean> => true;
  * 2. Branch on evaluation result:
  *    - If complete: create Linear issue, post URL, unsubscribe
  *    - Else if rounds remaining + question exists: post question, continue
- *    - Else (no question or max rounds): post fallback, unsubscribe
+ *    - Else (no question or max rounds): unsubscribe and throw — the run
+ *      resolves with a `failed` status for the coordinator to handle
  *
  * All dependencies (thread, queries, commands) are injected via runtimeContext.
  * This workflow is stateless per-run; conversation history is managed by the Chat SDK.
@@ -154,9 +165,17 @@ export const bugTriageWorkflow = createWorkflow({
   .branch([
     [isCompletionCondition, createIssueStep],
     [hasQuestionAndRoundsCondition, askStep],
-    [alwaysTrueCondition, fallbackStep],
+    [fallbackCondition, escalateStep],
   ])
   .commit();
 
-// Export steps for testing
-export { evaluateStep, createIssueStep, askStep, fallbackStep };
+// Export steps and conditions for testing
+export {
+  evaluateStep,
+  createIssueStep,
+  askStep,
+  escalateStep,
+  isCompletionCondition,
+  hasQuestionAndRoundsCondition,
+  fallbackCondition,
+};

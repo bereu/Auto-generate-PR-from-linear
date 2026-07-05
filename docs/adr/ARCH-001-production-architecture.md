@@ -109,6 +109,8 @@ sequenceDiagram
 - Always clean up the git worktree in a \`finally\` block regardless of success or failure.
 - Verify webhook signatures (HMAC-SHA256) for both Slack and Linear before processing any payload.
 - Scope Claude's allowedTools to the minimum set needed.
+- Make every Mastra \`.branch([...])\` set of conditions mutually exclusive **and** collectively exhaustive so exactly one branch runs per turn. Express the final fallback as the explicit negation of the other conditions (e.g. \`!isComplete && !hasQuestionAndRounds\`), not as an always-true predicate.
+- Always inspect the result of \`run.start(...)\` for a Mastra workflow. A step failure does **not** reject the promise — the run resolves with \`result.status === "failed"\` and a \`result.error\` payload. On \`failed\`, raise/handle the error (report via the \`logger\` util per BE-003) and notify the reporter in-thread so they are never left without a response.
 - Route every LLM system/instruction prompt through the Langfuse util's fetch-with-local-fallback methods (e.g. \`langfuse.fetchTriagePrompt\`, \`fetchFormatPrompt\`, \`fetchTaskPrompt\`), and register each prompt in Langfuse under a name centralized in \`LANGFUSE_PROMPT_NAMES\` (\`src/constants/mastra.constants.ts\`) with a matching local fallback template.
 
 ### Don't
@@ -117,6 +119,7 @@ sequenceDiagram
 - Do not share worktrees between concurrent issues.
 - Do not hardcode repository names or org slugs — keep them in \`repos.config.ts\`.
 - Do not process Linear webhooks if the issue lacks the \`agent\` label or is not in \`Todo\` state.
+- Do not use a catch-all / always-true condition as the fallback branch in a Mastra \`.branch([...])\`. Mastra evaluates **every** condition and runs **all** matching branches in parallel (it is not if/else-if/else), so an always-true fallback fires on every run alongside the real branch — causing duplicate side effects such as double Slack posts and an unintended \`unsubscribe\` (root cause of the bug-triage duplicate-response incident).
 - Do not pass a hardcoded prompt string directly to an LLM call (e.g. \`system: SOME_CONSTANT\` or an inline template). All prompts MUST be fetched from Langfuse with a local fallback so prompt edits do not require a redeploy and a fetch outage never hard-fails; local prompt constants may exist only as fallbacks.
 
 ## Consequences

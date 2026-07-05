@@ -21,7 +21,7 @@ export const WORKFLOW_STEP_IDS = {
   evaluate: "evaluate-bug-report",
   createIssue: "create-linear-issue",
   ask: "ask-clarifying-question",
-  fallback: "post-fallback-message",
+  escalate: "escalate-triage-failure",
 } as const;
 
 export type WorkflowStepId = (typeof WORKFLOW_STEP_IDS)[keyof typeof WORKFLOW_STEP_IDS];

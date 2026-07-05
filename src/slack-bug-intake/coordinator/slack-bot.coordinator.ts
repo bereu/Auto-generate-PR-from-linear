@@ -6,6 +6,7 @@ import { SlackTransfer } from "@/transfer/slack.transfer";
 import { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
 import { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
 import { WORKFLOW_NAMES } from "@/constants/mastra.constants";
+import { WORKFLOW_ERROR_MESSAGE } from "@/slack-bug-intake/slack-bug-intake.constants";
 import { mastra } from "@/util/mastra";
 import { webhookAdapter } from "@/util/webhook-adapter";
 import { logger } from "@/util/logger";
@@ -48,13 +49,35 @@ export class SlackBotCoordinator implements OnModuleInit {
       // Start the bug triage workflow with the injected context.
       const workflow = mastra.getWorkflow(WORKFLOW_NAMES.bugTriage);
       const run = await workflow.createRun();
-      await run.start({
+      const result = await run.start({
         inputData: {},
         requestContext,
       });
+
+      // Mastra does not throw on step failure — it resolves with a `failed`
+      // status and an `error` payload. Surface it so the catch block reports it
+      // (BE-003) and notifies the user, instead of silently succeeding.
+      if (result.status === "failed") {
+        throw result.error ?? new Error("Bug triage workflow returned a failed status");
+      }
     } catch (err) {
+      await this.reportFailure(thread, err as Error);
+    }
+  }
+
+  /**
+   * Report a triage failure through the logger util (BE-003, system error →
+   * Rollbar `error`) and best-effort notify the reporter in-thread so they are
+   * not left hanging. A post failure here must not mask the original error.
+   */
+  private async reportFailure(thread: Thread, error: Error): Promise<void> {
+    logger.error(`[slack-triage] handleIncoming failed: ${error.message}`, { error });
+    try {
+      await thread.post(WORKFLOW_ERROR_MESSAGE);
+    } catch (postErr) {
       logger.error(
-        `[slack-triage] handleIncoming failed: ${(err as Error).message}\n${(err as Error).stack ?? ""}`,
+        `[slack-triage] failed to post error notification: ${(postErr as Error).message}`,
+        { error: postErr as Error },
       );
     }
   }
