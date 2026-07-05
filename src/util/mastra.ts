@@ -1,7 +1,15 @@
 import { Mastra } from "@mastra/core/mastra";
+import { Observability } from "@mastra/observability";
+import { SpanType } from "@mastra/core/observability";
+import { LangfuseExporter } from "@mastra/langfuse";
 import { bugTriageAgent } from "@/slack-bug-intake/agent/bug-triage.agent";
 import { bugTriageWorkflow } from "@/slack-bug-intake/workflow/bug-triage.workflow";
-import { AGENT_NAMES, WORKFLOW_NAMES } from "@/constants/mastra.constants";
+import {
+  AGENT_NAMES,
+  WORKFLOW_NAMES,
+  OBSERVABILITY_SERVICE_NAME,
+} from "@/constants/mastra.constants";
+import { logger } from "@/util/logger";
 
 /**
  * Mastra singleton — owns the single Mastra instance and registers all
@@ -10,6 +18,12 @@ import { AGENT_NAMES, WORKFLOW_NAMES } from "@/constants/mastra.constants";
  * Storage/memory is left in-memory (Mastra's default): triage is stateless per
  * turn and conversation history is supplied by the Chat SDK, so no durable
  * store is needed. Wired into NestJS via `MastraModule` in `AppModule`.
+ *
+ * Observability is configured to integrate with Langfuse for tracing LLM execution.
+ * When `LANGFUSE_PUBLIC_KEY` and `LANGFUSE_SECRET_KEY` are both set, spans are
+ * exported to Langfuse. Otherwise, observability is disabled gracefully so local
+ * dev/tests run without Langfuse. Model token chunks are excluded from export
+ * to reduce costs (Langfuse charges per-span).
  */
 export class MastraProvider {
   private static instance: MastraProvider;
@@ -22,6 +36,41 @@ export class MastraProvider {
       },
       workflows: {
         [WORKFLOW_NAMES.bugTriage]: bugTriageWorkflow,
+      },
+      observability: this.buildObservability(),
+    });
+  }
+
+  /**
+   * Builds the Observability config with Langfuse integration, or returns
+   * undefined if Langfuse credentials are not set. Graceful disable allows
+   * local dev/tests to run without Langfuse.
+   */
+  private buildObservability(): Observability | undefined {
+    const publicKey = process.env.LANGFUSE_PUBLIC_KEY;
+    const secretKey = process.env.LANGFUSE_SECRET_KEY;
+    const baseUrl = process.env.LANGFUSE_BASE_URL;
+
+    if (!publicKey || !secretKey) {
+      logger.warn(
+        "[mastra] LANGFUSE_PUBLIC_KEY or LANGFUSE_SECRET_KEY not set — observability/tracing disabled",
+      );
+      return undefined;
+    }
+
+    return new Observability({
+      configs: {
+        default: {
+          serviceName: OBSERVABILITY_SERVICE_NAME,
+          exporters: [
+            new LangfuseExporter({
+              publicKey,
+              secretKey,
+              baseUrl,
+            }),
+          ],
+          excludeSpanTypes: [SpanType.MODEL_CHUNK, SpanType.MODEL_STEP],
+        },
       },
     });
   }
