@@ -4,6 +4,17 @@ export const MAX_CLARIFICATION_ROUNDS = 5;
 
 export const LINEAR_AGENT_LABEL = "agent";
 
+export const DIFFICULTY_LABELS = { easy: "easy", medium: "medium", hard: "hard" } as const;
+
+export type DifficultyLabel = (typeof DIFFICULTY_LABELS)[keyof typeof DIFFICULTY_LABELS];
+
+export const DIFFICULTY_VALUES = Object.values(DIFFICULTY_LABELS) as [
+  DifficultyLabel,
+  ...DifficultyLabel[],
+];
+
+export const FALLBACK_DIFFICULTY: DifficultyLabel = DIFFICULTY_LABELS.medium;
+
 export const WORKFLOW_ERROR_MESSAGE =
   "Something went wrong while processing your bug report. " +
   "Our team has been notified. Please try again shortly or file the issue directly in Linear.";
@@ -29,4 +40,16 @@ You are a bug report formatter. Given the conversation, produce:
   ## Expected Behaviour
   ## Actual Behaviour
   ## Environment
+`.trim();
+
+export const COMPLEXITY_SYSTEM_PROMPT = `
+You are an issue complexity assessor. Analyze the bug report and determine its difficulty.
+
+Consider:
+- Scope: Is the fix localized (easy) or system-wide (hard)?
+- Debugging effort: Clear repro steps (easy) or needs investigation (hard)?
+- Dependencies: Simple fix (easy) or requires multiple systems (hard)?
+- Reproducibility: Consistent (easy) or intermittent (hard)?
+
+Return difficulty as "easy", "medium", or "hard".
 `.trim();

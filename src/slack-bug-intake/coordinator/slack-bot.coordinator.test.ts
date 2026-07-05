@@ -4,6 +4,8 @@ import type { Message, Thread } from "chat";
 vi.mock("chat", () => ({ Chat: vi.fn() }));
 vi.mock("@chat-adapter/slack", () => ({ createSlackAdapter: vi.fn() }));
 vi.mock("@chat-adapter/state-memory", () => ({ createMemoryState: vi.fn() }));
+vi.mock("ai", () => ({ generateObject: vi.fn() }));
+vi.mock("@ai-sdk/anthropic", () => ({ anthropic: vi.fn(() => "mock-model") }));
 
 import { SlackBotCoordinator } from "@/slack-bug-intake/coordinator/slack-bot.coordinator";
 import type { SlackTransfer } from "@/transfer/slack.transfer";
@@ -11,6 +13,7 @@ import type { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-b
 import type { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
 import { makeTestMessage } from "@/test/message-helper";
 import { WORKFLOW_ERROR_MESSAGE } from "@/slack-bug-intake/slack-bug-intake.constants";
+import { generateObject } from "ai";
 
 const FIRST_CALL_ARG = 0;
 
@@ -108,8 +111,9 @@ describe("SlackBotCoordinator.handleIncoming", () => {
   });
 
   /**
-   * Branch 1: Complete report → create Linear issue, post URL, unsubscribe
-   * Ensures only the createIssue branch runs, not the fallback.
+   * Branch 1: Complete report → assess complexity → create Linear issue, post URL, unsubscribe
+   * Ensures only the completion branch (assess + create) runs, not the fallback.
+   * The assessComplexityStep now performs assessment inline via generateObject.
    */
   it("creates Linear issue and unsubscribes when report is complete", async () => {
     const messages = [
@@ -123,6 +127,11 @@ describe("SlackBotCoordinator.handleIncoming", () => {
       isComplete: true,
       clarifyingQuestion: null,
     });
+    // Mock generateObject for the inline complexity assessment in assessComplexityStep
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(generateObject as any).mockResolvedValueOnce({
+      object: { difficulty: "medium" },
+    });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     vi.mocked(mockCreateIssue!.execute as any).mockResolvedValueOnce({
       url: "https://linear.app/issue/123",
@@ -132,8 +141,8 @@ describe("SlackBotCoordinator.handleIncoming", () => {
       thread,
     );
 
-    // Verify createIssueStep ran: Linear issue created and URL posted
-    expect(mockCreateIssue!.execute).toHaveBeenCalledWith(messages);
+    // Verify createIssueStep ran with the assessed difficulty: Linear issue created and URL posted
+    expect(mockCreateIssue!.execute).toHaveBeenCalledWith(messages, "medium");
     expect(thread.post).toHaveBeenCalledWith("Linear issue created: https://linear.app/issue/123");
     // Verify unsubscribe was called (sign of createIssueStep, not other branches)
     expect(thread.unsubscribe).toHaveBeenCalledOnce();

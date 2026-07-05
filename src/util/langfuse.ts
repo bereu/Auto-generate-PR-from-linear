@@ -4,6 +4,7 @@ import { LANGFUSE_PROMPT_NAMES } from "@/constants/mastra.constants";
 import {
   TRIAGE_SYSTEM_PROMPT,
   FORMAT_SYSTEM_PROMPT,
+  COMPLEXITY_SYSTEM_PROMPT,
 } from "@/slack-bug-intake/slack-bug-intake.constants";
 import { promptLoader } from "@/util/prompt-loader";
 
@@ -86,6 +87,18 @@ export class Langfuse {
     return this.fetchTextPrompt(
       LANGFUSE_PROMPT_NAMES.bugReportFormat,
       FORMAT_SYSTEM_PROMPT,
+      variables,
+    );
+  }
+
+  /**
+   * Issue complexity assessment system prompt. No variables. Falls back to
+   * `COMPLEXITY_SYSTEM_PROMPT`.
+   */
+  async fetchComplexityPrompt(variables: Record<string, string> = {}): Promise<string> {
+    return this.fetchTextPrompt(
+      LANGFUSE_PROMPT_NAMES.complexity,
+      COMPLEXITY_SYSTEM_PROMPT,
       variables,
     );
   }

@@ -85,9 +85,46 @@ export class LinearTransfer {
     return team;
   }
 
+  private async resolveOrCreateLabelId(
+    client: LinearClient,
+    team: Team,
+    labelName: string,
+    existingLabelMap: Map<string, string>,
+  ): Promise<string | null> {
+    // Return id if label already exists
+    if (existingLabelMap.has(labelName)) {
+      return existingLabelMap.get(labelName)!;
+    }
+
+    // Attempt to create the label
+    try {
+      const payload = await client.createIssueLabel({ name: labelName, teamId: team.id });
+      const created = await payload.issueLabel;
+      if (created?.id) {
+        existingLabelMap.set(labelName, created.id);
+        return created.id;
+      }
+    } catch (error) {
+      logger.warn(`[linear] Failed to create label "${labelName}": ${(error as Error).message}`);
+    }
+
+    return null;
+  }
+
   private async resolveLabelIds(team: Team, labelNames: string[]): Promise<string[]> {
+    const client = this.client();
     const labelsConnection = await team.labels();
-    return labelsConnection.nodes.filter((l) => labelNames.includes(l.name)).map((l) => l.id);
+    const existingLabelMap = new Map(labelsConnection.nodes.map((l) => [l.name, l.id]));
+
+    const labelIds: string[] = [];
+    for (const labelName of labelNames) {
+      const labelId = await this.resolveOrCreateLabelId(client, team, labelName, existingLabelMap);
+      if (labelId) {
+        labelIds.push(labelId);
+      }
+    }
+
+    return labelIds;
   }
 
   private async resolveStateId(team: Team, stateName?: string): Promise<string | undefined> {

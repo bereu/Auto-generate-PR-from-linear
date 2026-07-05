@@ -1,11 +1,18 @@
 import { z } from "zod";
+import { generateObject } from "ai";
+import { anthropic } from "@ai-sdk/anthropic";
 import { createWorkflow, createStep } from "@mastra/core/workflows";
 import type { Thread } from "chat";
 import type { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
 import type { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
-import { MAX_CLARIFICATION_ROUNDS } from "@/slack-bug-intake/slack-bug-intake.constants";
-import { WORKFLOW_NAMES, WORKFLOW_STEP_IDS } from "@/constants/mastra.constants";
+import {
+  MAX_CLARIFICATION_ROUNDS,
+  DIFFICULTY_VALUES,
+  FALLBACK_DIFFICULTY,
+} from "@/slack-bug-intake/slack-bug-intake.constants";
+import { WORKFLOW_NAMES, WORKFLOW_STEP_IDS, AGENT_MODELS } from "@/constants/mastra.constants";
 import { logger } from "@/util/logger";
+import { langfuse } from "@/util/langfuse";
 
 /**
  * Schema for the evaluation result produced by evaluateStep.
@@ -18,6 +25,18 @@ const EvaluationResultSchema = z.object({
 });
 
 type EvaluationResult = z.infer<typeof EvaluationResultSchema>;
+
+/**
+ * Schema for the complexity result produced by assessComplexityStep.
+ * Includes the difficulty assessment from inline LLM call.
+ */
+const DifficultySchema = z.enum(DIFFICULTY_VALUES);
+
+const ComplexityResultSchema = z.object({
+  difficulty: DifficultySchema,
+});
+
+type ComplexityResult = z.infer<typeof ComplexityResultSchema>;
 
 /**
  * Step 1: Evaluate the bug report using the triage agent.
@@ -46,21 +65,65 @@ const evaluateStep = createStep({
 });
 
 /**
- * Step 2: Create a Linear issue and post the URL to Slack.
- * Executed when the report is complete.
+ * Step 2: Assess the complexity of the bug report.
+ * Performed inline via generateObject; no separate query class.
+ * Executed after evaluation confirms the report is complete, before creating the issue.
+ * Returns a difficulty rating (easy | medium | hard) that will be added as a label.
+ * On LLM failure, logs the error and returns FALLBACK_DIFFICULTY so issue creation
+ * can proceed — assessment is an enhancement, not a blocker (BE-003).
+ */
+const assessComplexityStep = createStep({
+  id: WORKFLOW_STEP_IDS.assessComplexity,
+  description: "Assess issue complexity and determine difficulty label",
+  inputSchema: EvaluationResultSchema,
+  outputSchema: ComplexityResultSchema,
+  async execute({ inputData: _inputData, requestContext }) {
+    const thread = requestContext.get<"thread", Thread>("thread");
+
+    try {
+      const messages = thread.recentMessages.map((m) => ({
+        role: (m.author.isMe ? "assistant" : "user") as "user" | "assistant",
+        content: m.text,
+      }));
+
+      const system = await langfuse.fetchComplexityPrompt();
+
+      const { object } = await generateObject({
+        model: anthropic(AGENT_MODELS.complexity),
+        system,
+        messages,
+        schema: z.object({ difficulty: DifficultySchema }),
+      });
+
+      logger.info(`[slack-triage] complexity assessed: difficulty=${object.difficulty}`);
+      return { difficulty: object.difficulty };
+    } catch (error) {
+      // BE-003: Log failure and degrade gracefully to safe default.
+      logger.warn(`[slack-triage] complexity assessment failed: ${(error as Error).message}`, {
+        error: error as Error,
+      });
+      return { difficulty: FALLBACK_DIFFICULTY };
+    }
+  },
+});
+
+/**
+ * Step 3: Create a Linear issue and post the URL to Slack.
+ * Executed when the report is complete (after complexity assessment).
+ * Receives the complexity result from assessComplexityStep and passes difficulty to the command.
  * Unsubscribes from the thread after posting.
  */
 const createIssueStep = createStep({
   id: WORKFLOW_STEP_IDS.createIssue,
   description: "Create Linear issue from complete bug report",
-  inputSchema: EvaluationResultSchema,
+  inputSchema: ComplexityResultSchema,
   outputSchema: z.object({}),
-  async execute({ inputData: _inputData, requestContext }) {
+  async execute({ inputData, requestContext }) {
     const thread = requestContext.get<"thread", Thread>("thread");
     const createLinearIssue = requestContext.get<"createLinearIssue", CreateLinearIssueCommand>(
       "createLinearIssue",
     );
-    const { url } = await createLinearIssue.execute(thread.recentMessages);
+    const { url } = await createLinearIssue.execute(thread.recentMessages, inputData.difficulty);
     logger.info(`[slack-triage] Linear issue created: ${url}`);
     await thread.post(`Linear issue created: ${url}`);
     await thread.unsubscribe();
@@ -142,12 +205,28 @@ const fallbackCondition = async (params: { inputData: EvaluationResult }): Promi
 };
 
 /**
+ * Nested completion workflow: chains assess complexity → create issue.
+ * Maintains the disjoint partition property of the branch:
+ * the completion condition selects this entire nested workflow as its target,
+ * so only ONE of the three main branches runs per turn.
+ */
+const completionWorkflow = createWorkflow({
+  id: `${WORKFLOW_NAMES.bugTriage}-completion`,
+  description: "Assess complexity and create Linear issue",
+  inputSchema: EvaluationResultSchema,
+  outputSchema: z.object({}),
+})
+  .then(assessComplexityStep)
+  .then(createIssueStep)
+  .commit();
+
+/**
  * Bug Triage Workflow
  *
  * Orchestrates the Slack bug report clarification loop:
  * 1. Evaluate the report for completeness
  * 2. Branch on evaluation result:
- *    - If complete: create Linear issue, post URL, unsubscribe
+ *    - If complete: assess complexity → create Linear issue, post URL, unsubscribe
  *    - Else if rounds remaining + question exists: post question, continue
  *    - Else (no question or max rounds): unsubscribe and throw — the run
  *      resolves with a `failed` status for the coordinator to handle
@@ -163,19 +242,24 @@ export const bugTriageWorkflow = createWorkflow({
 })
   .then(evaluateStep)
   .branch([
-    [isCompletionCondition, createIssueStep],
+    [isCompletionCondition, completionWorkflow],
     [hasQuestionAndRoundsCondition, askStep],
     [fallbackCondition, escalateStep],
   ])
   .commit();
 
-// Export steps and conditions for testing
+// Export steps, schemas, and conditions for testing
 export {
   evaluateStep,
+  assessComplexityStep,
   createIssueStep,
   askStep,
   escalateStep,
   isCompletionCondition,
   hasQuestionAndRoundsCondition,
   fallbackCondition,
+  EvaluationResultSchema,
+  ComplexityResultSchema,
+  type EvaluationResult,
+  type ComplexityResult,
 };

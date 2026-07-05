@@ -112,6 +112,8 @@ sequenceDiagram
 - Make every Mastra \`.branch([...])\` set of conditions mutually exclusive **and** collectively exhaustive so exactly one branch runs per turn. Express the final fallback as the explicit negation of the other conditions (e.g. \`!isComplete && !hasQuestionAndRounds\`), not as an always-true predicate.
 - Always inspect the result of \`run.start(...)\` for a Mastra workflow. A step failure does **not** reject the promise — the run resolves with \`result.status === "failed"\` and a \`result.error\` payload. On \`failed\`, raise/handle the error (report via the \`logger\` util per BE-003) and notify the reporter in-thread so they are never left without a response.
 - Route every LLM system/instruction prompt through the Langfuse util's fetch-with-local-fallback methods (e.g. \`langfuse.fetchTriagePrompt\`, \`fetchFormatPrompt\`, \`fetchTaskPrompt\`), and register each prompt in Langfuse under a name centralized in \`LANGFUSE_PROMPT_NAMES\` (\`src/constants/mastra.constants.ts\`) with a matching local fallback template.
+- Prefer having a Mastra workflow step delegate its LLM/business logic to a Query (read/classify) or Command (side-effect) rather than performing it inline — the step orchestrates, the Query/Command owns the call. This keeps steps at the Coordinator altitude per [BE-001](./BE-001-layer-architecture.md) (e.g. \`evaluateStep\` → \`EvaluateBugReportQuery\`, \`createIssueStep\` → \`CreateLinearIssueCommand\`).
+- A short, self-contained assessment/classification LLM call MAY be performed **inline** within a workflow step when it produces only data consumed by the same workflow run and introduces no reusable business rule (e.g. \`assessComplexityStep\` classifying issue difficulty via \`generateObject\`). When inlined it MUST still (a) fetch its prompt through the Langfuse fetch-with-local-fallback util under a \`LANGFUSE_PROMPT_NAMES\` name, and (b) catch failure, report via the \`logger\` util, and degrade to a safe default so the run is never blocked (per BE-003).
 
 ### Don't
 
@@ -121,6 +123,7 @@ sequenceDiagram
 - Do not process Linear webhooks if the issue lacks the \`agent\` label or is not in \`Todo\` state.
 - Do not use a catch-all / always-true condition as the fallback branch in a Mastra \`.branch([...])\`. Mastra evaluates **every** condition and runs **all** matching branches in parallel (it is not if/else-if/else), so an always-true fallback fires on every run alongside the real branch — causing duplicate side effects such as double Slack posts and an unintended \`unsubscribe\` (root cause of the bug-triage duplicate-response incident).
 - Do not pass a hardcoded prompt string directly to an LLM call (e.g. \`system: SOME_CONSTANT\` or an inline template). All prompts MUST be fetched from Langfuse with a local fallback so prompt edits do not require a redeploy and a fetch outage never hard-fails; local prompt constants may exist only as fallbacks.
+- Do not place reusable or side-effecting business logic (issue creation, Linear state transitions, repository writes, anything reused elsewhere) directly inside a workflow step. Those belong in a Command or Query; only the narrow inline-assessment allowance above is exempt.
 
 ## Consequences
 

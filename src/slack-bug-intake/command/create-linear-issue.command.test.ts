@@ -28,7 +28,7 @@ function setupCommandTest(): {
   return { command, mockLinearTransfer };
 }
 
-describe("CreateLinearIssueCommand - createIssue invocation", () => {
+describe("CreateLinearIssueCommand - without difficulty", () => {
   let command: CreateLinearIssueCommand;
   let mockLinearTransfer: { createIssue: ReturnType<typeof vi.fn> };
 
@@ -36,7 +36,7 @@ describe("CreateLinearIssueCommand - createIssue invocation", () => {
     ({ command, mockLinearTransfer } = setupCommandTest());
   });
 
-  it("calls linearTransfer.createIssue with labelNames agent", async () => {
+  it("calls createIssue with agent label when no difficulty provided", async () => {
     vi.mocked(generateObject).mockResolvedValue({
       object: { title: "Login button broken", description: "## Summary\nButton does not work." },
     } as never);
@@ -44,13 +44,109 @@ describe("CreateLinearIssueCommand - createIssue invocation", () => {
     const messages = [makeTestMessage("The login button is broken on Chrome.", false)];
     await command.execute(messages);
 
-    expect(mockLinearTransfer.createIssue).toHaveBeenCalledOnce();
     expect(mockLinearTransfer.createIssue).toHaveBeenCalledWith({
       title: "Login button broken",
       description: "## Summary\nButton does not work.",
       labelNames: ["agent"],
       stateName: "Todo",
     });
+  });
+});
+
+describe("CreateLinearIssueCommand - with difficulty", () => {
+  let command: CreateLinearIssueCommand;
+  let mockLinearTransfer: { createIssue: ReturnType<typeof vi.fn> };
+
+  beforeEach(() => {
+    ({ command, mockLinearTransfer } = setupCommandTest());
+  });
+
+  it("includes agent and hard labels when difficulty is hard", async () => {
+    vi.mocked(generateObject).mockResolvedValue({
+      object: { title: "Complex query issue", description: "## Summary\nSlow performance." },
+    } as never);
+
+    const messages = [makeTestMessage("Database query is slow.", false)];
+    await command.execute(messages, "hard");
+
+    expect(mockLinearTransfer.createIssue).toHaveBeenCalledWith({
+      title: "Complex query issue",
+      description: "## Summary\nSlow performance.",
+      labelNames: ["agent", "hard"],
+      stateName: "Todo",
+    });
+  });
+});
+
+describe("CreateLinearIssueCommand - easy difficulty", () => {
+  let command: CreateLinearIssueCommand;
+  let mockLinearTransfer: { createIssue: ReturnType<typeof vi.fn> };
+
+  beforeEach(() => {
+    ({ command, mockLinearTransfer } = setupCommandTest());
+  });
+
+  it("includes easy difficulty label", async () => {
+    vi.mocked(generateObject).mockResolvedValue({
+      object: { title: "test", description: "test" },
+    } as never);
+
+    const messages = [makeTestMessage("issue", false)];
+    await command.execute(messages, "easy");
+
+    expect(mockLinearTransfer.createIssue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        labelNames: ["agent", "easy"],
+      }),
+    );
+  });
+});
+
+describe("CreateLinearIssueCommand - medium difficulty", () => {
+  let command: CreateLinearIssueCommand;
+  let mockLinearTransfer: { createIssue: ReturnType<typeof vi.fn> };
+
+  beforeEach(() => {
+    ({ command, mockLinearTransfer } = setupCommandTest());
+  });
+
+  it("includes medium difficulty label", async () => {
+    vi.mocked(generateObject).mockResolvedValue({
+      object: { title: "test", description: "test" },
+    } as never);
+
+    const messages = [makeTestMessage("issue", false)];
+    await command.execute(messages, "medium");
+
+    expect(mockLinearTransfer.createIssue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        labelNames: ["agent", "medium"],
+      }),
+    );
+  });
+});
+
+describe("CreateLinearIssueCommand - hard difficulty", () => {
+  let command: CreateLinearIssueCommand;
+  let mockLinearTransfer: { createIssue: ReturnType<typeof vi.fn> };
+
+  beforeEach(() => {
+    ({ command, mockLinearTransfer } = setupCommandTest());
+  });
+
+  it("includes hard difficulty label", async () => {
+    vi.mocked(generateObject).mockResolvedValue({
+      object: { title: "test", description: "test" },
+    } as never);
+
+    const messages = [makeTestMessage("issue", false)];
+    await command.execute(messages, "hard");
+
+    expect(mockLinearTransfer.createIssue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        labelNames: ["agent", "hard"],
+      }),
+    );
   });
 });
 
