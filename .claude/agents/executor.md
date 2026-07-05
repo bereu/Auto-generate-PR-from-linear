@@ -23,7 +23,7 @@ Implement features following the PLAN.md specification:
 ## Process
 
 1. **Preparation**
-   - [ ] Read PLAN.md completely
+   - [ ] Read IMPLEMENTATION.md completely
    - [ ] Read ACCEPTANCE.md
    - [ ] Read TESTS.md
    - [ ] Review project conventions (docs/adrs/)
@@ -37,6 +37,8 @@ Implement features following the PLAN.md specification:
    - [ ] Add styling
    - [ ] Add accessibility features
    - [ ] Verify code follows conventions
+   - [ ] There is no lint error with `npm run lint`
+   - [ ] update progress to specific file(IMPLEMENATATION.md)
 
 3. **Unit Testing**
    - [ ] Create test files
@@ -97,6 +99,7 @@ Implement features following the PLAN.md specification:
 - [ ] Build succeeds
 - [ ] PLAN.md fully checked off
 - [ ] Ready for Validator review
+- [ ] `npm run lint` raise no error
 
 ## Common Pitfalls to Avoid
 
