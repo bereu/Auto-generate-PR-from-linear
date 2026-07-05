@@ -59,7 +59,11 @@ sequenceDiagram
 - Powered by the **Chat SDK** (\`chat\` and \`@chat-adapter/slack\` / \`@chat-adapter/state-memory\`) to abstract Slack API plumbing (URL verification challenges, signature verification, and event routing) into high-level event listeners like \`onNewMention\` and \`onSubscribedMessage\`.
 - Manages thread-based conversational history using the Chat SDK state adapter to support multi-turn triage interactions.
 - The app replies in-thread to ask structured clarifying questions (reproduction steps, environment, expected vs actual behaviour).
-- Once clarification is complete, the app dispatches the completed triage-ready report to create a Linear issue.
+- The triage clarification loop is orchestrated by a **Mastra Workflow** (`bugTriageWorkflow`) registered in `MastraProvider`. The workflow implements three branches:
+  - **Complete report**: Creates a Linear issue, posts the URL to Slack, and unsubscribes.
+  - **Incomplete with clarifying question**: Posts the question to Slack (does not unsubscribe; awaits user response).
+  - **Max rounds exhausted or no question available**: Posts a fallback message and unsubscribes.
+- Once clarification is complete (or max rounds exceeded), the workflow terminates and Slack integration awaits the next message in the thread.
 - Uses \`SLACK_BOT_TOKEN\` and \`SLACK_SIGNING_SECRET\` environment variables.
 
 #### Linear (Issue Tracking)

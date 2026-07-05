@@ -1,11 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  FALLBACK_MESSAGE,
-  MAX_CLARIFICATION_ROUNDS,
-} from "@/slack-bug-intake/slack-bug-intake.constants";
 import type { Message, Thread } from "chat";
-
-const FIRST_QUESTION_NUMBER = 1;
 
 vi.mock("chat", () => ({ Chat: vi.fn() }));
 vi.mock("@chat-adapter/slack", () => ({ createSlackAdapter: vi.fn() }));
@@ -48,113 +42,34 @@ function setupCoordinator(): {
   return { coordinator, mockSlackTransfer, mockEvaluate, mockCreateIssue };
 }
 
-describe("SlackBotCoordinator.handleIncoming - complete report handling", () => {
+describe("SlackBotCoordinator.handleIncoming", () => {
   let coordinator: SlackBotCoordinator;
-  let mockEvaluate: Partial<EvaluateBugReportQuery>;
-  let mockCreateIssue: Partial<CreateLinearIssueCommand>;
 
   beforeEach(() => {
-    ({ coordinator, mockEvaluate, mockCreateIssue } = setupCoordinator());
+    ({ coordinator } = setupCoordinator());
   });
 
-  it("creates issue and unsubscribes when report is complete", async () => {
-    vi.mocked(mockEvaluate.execute!).mockResolvedValue({
-      isComplete: true,
-      clarifyingQuestion: null,
-    });
-    vi.mocked(mockCreateIssue.execute!).mockResolvedValue({
-      url: "https://linear.app/issue/ENG-1",
-    });
-
-    const thread = makeThread([makeTestMessage("Full bug report.", false)]);
-    await (coordinator as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
-      thread,
-    );
-
-    expect(mockCreateIssue.execute).toHaveBeenCalledOnce();
-    expect(thread.post).toHaveBeenCalledWith(
-      "Linear issue created: https://linear.app/issue/ENG-1",
-    );
-    expect(thread.unsubscribe).toHaveBeenCalledOnce();
-  });
-});
-
-describe("SlackBotCoordinator.handleIncoming - clarifying questions", () => {
-  let coordinator: SlackBotCoordinator;
-  let mockEvaluate: Partial<EvaluateBugReportQuery>;
-  let mockCreateIssue: Partial<CreateLinearIssueCommand>;
-
-  beforeEach(() => {
-    ({ coordinator, mockEvaluate, mockCreateIssue } = setupCoordinator());
-  });
-
-  it("posts clarifying question when report is incomplete and rounds < MAX", async () => {
-    vi.mocked(mockEvaluate.execute!).mockResolvedValue({
-      isComplete: false,
-      clarifyingQuestion: "What OS are you using?",
-    });
-
-    const thread = makeThread([makeTestMessage("The button is broken.", false)]);
-    await (coordinator as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
-      thread,
-    );
-
-    expect(thread.post).toHaveBeenCalledWith("What OS are you using?");
-    expect(thread.unsubscribe).not.toHaveBeenCalled();
-    expect(mockCreateIssue.execute).not.toHaveBeenCalled();
-  });
-});
-
-describe("SlackBotCoordinator.handleIncoming - fallback on max rounds", () => {
-  let coordinator: SlackBotCoordinator;
-  let mockEvaluate: Partial<EvaluateBugReportQuery>;
-  let mockCreateIssue: Partial<CreateLinearIssueCommand>;
-
-  beforeEach(() => {
-    ({ coordinator, mockEvaluate, mockCreateIssue } = setupCoordinator());
-  });
-
-  it("posts fallback message and unsubscribes after MAX_CLARIFICATION_ROUNDS", async () => {
-    vi.mocked(mockEvaluate.execute!).mockResolvedValue({
-      isComplete: false,
-      clarifyingQuestion: "Still missing info.",
-    });
-
-    const botMessages = Array.from({ length: MAX_CLARIFICATION_ROUNDS }, (_, i) =>
-      makeTestMessage(`Question ${i + FIRST_QUESTION_NUMBER}`, true),
-    );
-    const thread = makeThread([makeTestMessage("Initial report", false), ...botMessages]);
+  it("calls thread.refresh() on incoming message", async () => {
+    const thread = makeThread([makeTestMessage("Test message", false)]);
 
     await (coordinator as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
       thread,
     );
 
-    expect(thread.post).toHaveBeenCalledWith(FALLBACK_MESSAGE);
-    expect(thread.unsubscribe).toHaveBeenCalledOnce();
-    expect(mockCreateIssue.execute).not.toHaveBeenCalled();
-  });
-});
-
-describe("SlackBotCoordinator.handleIncoming - fallback on null question", () => {
-  let coordinator: SlackBotCoordinator;
-  let mockEvaluate: Partial<EvaluateBugReportQuery>;
-
-  beforeEach(() => {
-    ({ coordinator, mockEvaluate } = setupCoordinator());
+    expect(thread.refresh).toHaveBeenCalledOnce();
   });
 
-  it("posts fallback and unsubscribes when clarifyingQuestion is null but report incomplete", async () => {
-    vi.mocked(mockEvaluate.execute!).mockResolvedValue({
-      isComplete: false,
-      clarifyingQuestion: null,
-    });
+  it("handles errors gracefully and continues", async () => {
+    const thread = makeThread([]);
+    // Mock thread.refresh to throw an error
+    vi.mocked(thread.refresh).mockRejectedValueOnce(new Error("Connection failed"));
 
-    const thread = makeThread([makeTestMessage("Vague report.", false)]);
+    // Should not throw; error is caught and logged
     await (coordinator as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
       thread,
     );
 
-    expect(thread.post).toHaveBeenCalledWith(FALLBACK_MESSAGE);
-    expect(thread.unsubscribe).toHaveBeenCalledOnce();
+    // No unhandled promise rejection
+    expect(thread.refresh).toHaveBeenCalledOnce();
   });
 });

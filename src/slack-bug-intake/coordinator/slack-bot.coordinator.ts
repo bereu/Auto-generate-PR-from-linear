@@ -1,13 +1,12 @@
 import { Injectable, Inject, type OnModuleInit } from "@nestjs/common";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import type { Thread } from "chat";
+import { RequestContext } from "@mastra/core/request-context";
 import { SlackTransfer } from "@/transfer/slack.transfer";
 import { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
 import { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
-import {
-  MAX_CLARIFICATION_ROUNDS,
-  FALLBACK_MESSAGE,
-} from "@/slack-bug-intake/slack-bug-intake.constants";
+import { WORKFLOW_NAMES } from "@/constants/mastra.constants";
+import { mastra } from "@/util/mastra";
 import { webhookAdapter } from "@/util/webhook-adapter";
 import { logger } from "@/util/logger";
 
@@ -30,47 +29,29 @@ export class SlackBotCoordinator implements OnModuleInit {
     });
   }
 
-  private async evaluateAndLogReport(
-    thread: Thread,
-  ): Promise<{ isComplete: boolean; clarifyingQuestion: string | null; botTurns: number }> {
-    const { isComplete, clarifyingQuestion } = await this.evaluateBugReport.execute(
-      thread.recentMessages,
-    );
-    const botTurns = thread.recentMessages.filter((m) => m.author.isMe).length;
-    logger.info(
-      `[slack-triage] evaluated: isComplete=${isComplete} hasQuestion=${clarifyingQuestion !== null} botTurns=${botTurns} messages=${thread.recentMessages.length}`,
-    );
-    return { isComplete, clarifyingQuestion, botTurns };
-  }
-
-  private async respondToBugReport(
-    thread: Thread,
-    isComplete: boolean,
-    clarifyingQuestion: string | null,
-    botTurns: number,
-  ): Promise<void> {
-    if (isComplete) {
-      const { url } = await this.createLinearIssue.execute(thread.recentMessages);
-      logger.info(`[slack-triage] Linear issue created: ${url}`);
-      await thread.post(`Linear issue created: ${url}`);
-      await thread.unsubscribe();
-    } else if (botTurns < MAX_CLARIFICATION_ROUNDS && clarifyingQuestion !== null) {
-      logger.info(`[slack-triage] posting clarifying question`);
-      await thread.post(clarifyingQuestion);
-    } else {
-      logger.info(
-        `[slack-triage] rounds exhausted or no question — posting fallback and unsubscribing`,
-      );
-      await thread.post(FALLBACK_MESSAGE);
-      await thread.unsubscribe();
-    }
-  }
-
   private async handleIncoming(thread: Thread): Promise<void> {
     try {
       await thread.refresh();
-      const { isComplete, clarifyingQuestion, botTurns } = await this.evaluateAndLogReport(thread);
-      await this.respondToBugReport(thread, isComplete, clarifyingQuestion, botTurns);
+
+      // Build Mastra request context with dependencies needed by workflow steps.
+      // RequestContext is a Map-like container; pass tuples in constructor.
+      const requestContext = new RequestContext<{
+        thread: Thread;
+        evaluateBugReport: EvaluateBugReportQuery;
+        createLinearIssue: CreateLinearIssueCommand;
+      }>([
+        ["thread", thread],
+        ["evaluateBugReport", this.evaluateBugReport],
+        ["createLinearIssue", this.createLinearIssue],
+      ]);
+
+      // Start the bug triage workflow with the injected context.
+      const workflow = mastra.getWorkflow(WORKFLOW_NAMES.bugTriage);
+      const run = await workflow.createRun();
+      await run.start({
+        inputData: {},
+        requestContext,
+      });
     } catch (err) {
       logger.error(
         `[slack-triage] handleIncoming failed: ${(err as Error).message}\n${(err as Error).stack ?? ""}`,

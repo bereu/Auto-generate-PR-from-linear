@@ -1,6 +1,7 @@
 import { Mastra } from "@mastra/core/mastra";
 import { bugTriageAgent } from "@/slack-bug-intake/agent/bug-triage.agent";
-import { AGENT_NAMES } from "@/constants/mastra.constants";
+import { bugTriageWorkflow } from "@/slack-bug-intake/workflow/bug-triage.workflow";
+import { AGENT_NAMES, WORKFLOW_NAMES } from "@/constants/mastra.constants";
 
 /**
  * Mastra singleton — owns the single Mastra instance and registers all
@@ -18,6 +19,9 @@ export class MastraProvider {
     this._mastra = new Mastra({
       agents: {
         [AGENT_NAMES.bugTriage]: bugTriageAgent,
+      },
+      workflows: {
+        [WORKFLOW_NAMES.bugTriage]: bugTriageWorkflow,
       },
     });
   }
