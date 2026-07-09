@@ -217,3 +217,101 @@ describe("CreateLinearIssueCommand - generateObject options", () => {
     expect(callArgs.system).toContain("bug report formatter");
   });
 });
+
+describe("CreateLinearIssueCommand - feature labels", () => {
+  let command: CreateLinearIssueCommand;
+  let mockLinearTransfer: { createIssue: ReturnType<typeof vi.fn> };
+
+  beforeEach(() => {
+    ({ command, mockLinearTransfer } = setupCommandTest());
+  });
+
+  it("includes feature label when kind is feature_request", async () => {
+    vi.mocked(generateObject).mockResolvedValue({
+      object: { title: "Dark mode", description: "## Summary\nAdd dark theme." },
+    } as never);
+
+    const messages = [makeTestMessage("Can you add dark mode?", false)];
+    await command.execute(messages, "medium", "feature_request");
+
+    expect(mockLinearTransfer.createIssue).toHaveBeenCalledWith({
+      title: "Dark mode",
+      description: "## Summary\nAdd dark theme.",
+      labelNames: ["agent", "feature", "medium"],
+      stateName: "Todo",
+    });
+  });
+});
+
+describe("CreateLinearIssueCommand - bug labels", () => {
+  let command: CreateLinearIssueCommand;
+  let mockLinearTransfer: { createIssue: ReturnType<typeof vi.fn> };
+
+  beforeEach(() => {
+    ({ command, mockLinearTransfer } = setupCommandTest());
+  });
+
+  it("includes only agent label without feature label when kind is bug", async () => {
+    vi.mocked(generateObject).mockResolvedValue({
+      object: { title: "Bug", description: "Broken feature" },
+    } as never);
+
+    const messages = [makeTestMessage("Button doesn't work", false)];
+    await command.execute(messages, "easy", "bug");
+
+    expect(mockLinearTransfer.createIssue).toHaveBeenCalledWith({
+      title: "Bug",
+      description: "Broken feature",
+      labelNames: ["agent", "easy"],
+      stateName: "Todo",
+    });
+  });
+});
+
+describe("CreateLinearIssueCommand - feature format prompt", () => {
+  let command: CreateLinearIssueCommand;
+
+  beforeEach(() => {
+    ({ command } = setupCommandTest());
+  });
+
+  it("uses feature format prompt when kind is feature_request", async () => {
+    vi.mocked(generateObject).mockResolvedValue({
+      object: { title: "t", description: "d" },
+    } as never);
+
+    await command.execute(
+      [makeTestMessage("feature request", false)],
+      undefined,
+      "feature_request",
+    );
+
+    expect(generateObject).toHaveBeenCalledOnce();
+    const callArgs = vi.mocked(generateObject).mock.calls[FIRST_CALL][FIRST_ARG] as {
+      system: string;
+    };
+    expect(callArgs.system).toContain("feature request formatter");
+  });
+});
+
+describe("CreateLinearIssueCommand - bug format prompt", () => {
+  let command: CreateLinearIssueCommand;
+
+  beforeEach(() => {
+    ({ command } = setupCommandTest());
+  });
+
+  it("defaults to bug format when kind is not feature_request", async () => {
+    vi.mocked(generateObject).mockResolvedValue({
+      object: { title: "t", description: "d" },
+    } as never);
+
+    await command.execute([makeTestMessage("bug report", false)], undefined, "bug");
+
+    expect(generateObject).toHaveBeenCalledOnce();
+    const callArgs = vi.mocked(generateObject).mock.calls[FIRST_CALL][FIRST_ARG] as {
+      system: string;
+    };
+    expect(callArgs.system).toContain("bug report formatter");
+  });
+});

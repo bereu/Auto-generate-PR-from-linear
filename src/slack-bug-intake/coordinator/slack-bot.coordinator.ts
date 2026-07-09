@@ -3,7 +3,10 @@ import type { Request as ExpressRequest, Response as ExpressResponse } from "exp
 import type { Thread } from "chat";
 import { RequestContext } from "@mastra/core/request-context";
 import { SlackTransfer } from "@/transfer/slack.transfer";
+import { ClassifyMessageQuery } from "@/slack-bug-intake/query/classify-message.query";
+import { AnswerQuestionQuery } from "@/slack-bug-intake/query/answer-question.query";
 import { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
+import { EvaluateFeatureRequestQuery } from "@/slack-bug-intake/query/evaluate-feature-request.query";
 import { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
 import { WORKFLOW_NAMES } from "@/constants/mastra.constants";
 import { classifyTriageError } from "@/slack-bug-intake/triage-error";
@@ -15,7 +18,11 @@ import { logger } from "@/util/logger";
 export class SlackBotCoordinator implements OnModuleInit {
   constructor(
     @Inject(SlackTransfer) private readonly slackTransfer: SlackTransfer,
+    @Inject(ClassifyMessageQuery) private readonly classifyMessage: ClassifyMessageQuery,
+    @Inject(AnswerQuestionQuery) private readonly answerQuestion: AnswerQuestionQuery,
     @Inject(EvaluateBugReportQuery) private readonly evaluateBugReport: EvaluateBugReportQuery,
+    @Inject(EvaluateFeatureRequestQuery)
+    private readonly evaluateFeatureRequest: EvaluateFeatureRequestQuery,
     @Inject(CreateLinearIssueCommand) private readonly createLinearIssue: CreateLinearIssueCommand,
   ) {}
 
@@ -33,20 +40,8 @@ export class SlackBotCoordinator implements OnModuleInit {
   private async handleIncoming(thread: Thread): Promise<void> {
     try {
       await thread.refresh();
+      const requestContext = this.buildRequestContext(thread);
 
-      // Build Mastra request context with dependencies needed by workflow steps.
-      // RequestContext is a Map-like container; pass tuples in constructor.
-      const requestContext = new RequestContext<{
-        thread: Thread;
-        evaluateBugReport: EvaluateBugReportQuery;
-        createLinearIssue: CreateLinearIssueCommand;
-      }>([
-        ["thread", thread],
-        ["evaluateBugReport", this.evaluateBugReport],
-        ["createLinearIssue", this.createLinearIssue],
-      ]);
-
-      // Start the bug triage workflow with the injected context.
       const workflow = mastra.getWorkflow(WORKFLOW_NAMES.bugTriage);
       const run = await workflow.createRun();
       const result = await run.start({
@@ -63,6 +58,21 @@ export class SlackBotCoordinator implements OnModuleInit {
     } catch (err) {
       await this.reportFailure(thread, err as Error);
     }
+  }
+
+  private buildRequestContext(
+    thread: Thread,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): RequestContext<any> {
+    return new RequestContext([
+      ["thread", thread],
+      ["classifyMessage", this.classifyMessage],
+      ["answerQuestion", this.answerQuestion],
+      ["evaluateBugReport", this.evaluateBugReport],
+      ["evaluateFeatureRequest", this.evaluateFeatureRequest],
+      ["createLinearIssue", this.createLinearIssue],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ] as any);
   }
 
   /**

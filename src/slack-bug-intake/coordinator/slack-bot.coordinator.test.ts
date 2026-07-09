@@ -9,7 +9,10 @@ vi.mock("@ai-sdk/anthropic", () => ({ anthropic: vi.fn(() => "mock-model") }));
 
 import { SlackBotCoordinator } from "@/slack-bug-intake/coordinator/slack-bot.coordinator";
 import type { SlackTransfer } from "@/transfer/slack.transfer";
+import type { ClassifyMessageQuery } from "@/slack-bug-intake/query/classify-message.query";
+import type { AnswerQuestionQuery } from "@/slack-bug-intake/query/answer-question.query";
 import type { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
+import type { EvaluateFeatureRequestQuery } from "@/slack-bug-intake/query/evaluate-feature-request.query";
 import type { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
 import { makeTestMessage } from "@/test/message-helper";
 import {
@@ -56,14 +59,25 @@ function setupCoordinator(): {
     onNewMention: vi.fn(),
     onSubscribedMessage: vi.fn(),
   };
+  const mockClassifyMessage = { execute: vi.fn() };
+  const mockAnswerQuestion = { execute: vi.fn() };
   const mockEvaluate: Partial<EvaluateBugReportQuery> = { execute: vi.fn() };
+  const mockEvaluateFeature = { execute: vi.fn() };
   const mockCreateIssue: Partial<CreateLinearIssueCommand> = { execute: vi.fn() };
   const coordinator = new SlackBotCoordinator(
     mockSlackTransfer as SlackTransfer,
+    mockClassifyMessage as unknown as ClassifyMessageQuery,
+    mockAnswerQuestion as unknown as AnswerQuestionQuery,
     mockEvaluate as EvaluateBugReportQuery,
+    mockEvaluateFeature as unknown as EvaluateFeatureRequestQuery,
     mockCreateIssue as CreateLinearIssueCommand,
   );
-  return { coordinator, mockSlackTransfer, mockEvaluate, mockCreateIssue };
+  return {
+    coordinator,
+    mockSlackTransfer,
+    mockEvaluate,
+    mockCreateIssue,
+  };
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -187,7 +201,7 @@ describe("SlackBotCoordinator.handleIncoming", () => {
     );
 
     // Verify createIssueStep ran with the assessed difficulty: Linear issue created and URL posted
-    expect(mockCreateIssue!.execute).toHaveBeenCalledWith(messages, "medium");
+    expect(mockCreateIssue!.execute).toHaveBeenCalledWith(messages, "medium", "bug");
     expect(thread.post).toHaveBeenCalledWith(
       buildIssueCreatedMessage("https://linear.app/issue/123"),
     );
@@ -271,7 +285,7 @@ describe("SlackBotCoordinator.handleIncoming", () => {
     );
 
     // Verify createIssueOnMaxRoundsStep ran: complexity assessed and issue created
-    expect(mockCreateIssue!.execute).toHaveBeenCalledWith(messages, "medium");
+    expect(mockCreateIssue!.execute).toHaveBeenCalledWith(messages, "medium", "bug");
     // Verify the partial-detail message was posted (distinct from the normal "Linear issue created" message)
     const expectedMessage = buildMaxRoundsIssueCreatedMessage("https://linear.app/issue/456");
     expect(thread.post).toHaveBeenCalledWith(expectedMessage);

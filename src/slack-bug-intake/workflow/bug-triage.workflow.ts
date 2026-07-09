@@ -1,352 +1,169 @@
 import { z } from "zod";
-import type { ModelMessage } from "ai";
 import { createWorkflow, createStep } from "@mastra/core/workflows";
-import type { PublicSchema } from "@mastra/core/schema";
 import type { Thread } from "chat";
-import type { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
-import type { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
-import {
-  MAX_CLARIFICATION_ROUNDS,
-  FALLBACK_DIFFICULTY,
-  buildMaxRoundsIssueCreatedMessage,
-  buildIssueCreatedMessage,
-} from "@/slack-bug-intake/slack-bug-intake.constants";
+import type { ClassifyMessageQuery } from "@/slack-bug-intake/query/classify-message.query";
+import type { AnswerQuestionQuery } from "@/slack-bug-intake/query/answer-question.query";
 import { WORKFLOW_NAMES, WORKFLOW_STEP_IDS } from "@/constants/mastra.constants";
-import { InsufficientBugDetailError } from "@/constants/errors/business.error";
+import { INTENT_KINDS } from "@/slack-bug-intake/slack-bug-intake.constants";
 import { logger } from "@/util/logger";
 import {
-  complexityAgent,
-  DifficultySchema,
-  type Difficulty,
-} from "@/slack-bug-intake/agent/complexity.agent";
-
-/**
- * Schema for the evaluation result produced by evaluateStep.
- * Matches the output of EvaluateBugReportQuery.execute.
- */
-const EvaluationResultSchema = z.object({
-  isComplete: z.boolean(),
-  clarifyingQuestion: z.string().nullable(),
-  botTurns: z.number(),
-});
-
-type EvaluationResult = z.infer<typeof EvaluationResultSchema>;
-
-/**
- * Schema for the complexity result produced by assessComplexityStep.
- * Includes the difficulty assessment from the complexity agent.
- */
-const ComplexityResultSchema = z.object({
-  difficulty: DifficultySchema,
-});
-
-type ComplexityResult = z.infer<typeof ComplexityResultSchema>;
-
-/**
- * Step 1: Evaluate the bug report using the triage agent.
- * Calls EvaluateBugReportQuery to assess completeness.
- * Logs evaluation details with [slack-triage] prefix.
- */
-const evaluateStep = createStep({
-  id: WORKFLOW_STEP_IDS.evaluate,
-  description: "Evaluate bug report completeness",
-  inputSchema: z.object({}),
-  outputSchema: EvaluationResultSchema,
-  async execute({ inputData: _inputData, requestContext }) {
-    const thread = requestContext.get<"thread", Thread>("thread");
-    const evaluateBugReport = requestContext.get<"evaluateBugReport", EvaluateBugReportQuery>(
-      "evaluateBugReport",
-    );
-    const { isComplete, clarifyingQuestion } = await evaluateBugReport.execute(
-      thread.recentMessages,
-    );
-    const botTurns = thread.recentMessages.filter((m) => m.author.isMe).length;
-    logger.info(
-      `[slack-triage] evaluated: isComplete=${isComplete} hasQuestion=${clarifyingQuestion !== null} botTurns=${botTurns} messages=${thread.recentMessages.length}`,
-    );
-    return { isComplete, clarifyingQuestion, botTurns };
-  },
-});
-
-/**
- * Step 2: Assess the complexity of the bug report.
- * Uses the complexity agent with workspace access to domain docs.
- * Executed after evaluation confirms the report is complete, before creating the issue.
- * Returns a difficulty rating (easy | medium | hard) that will be added as a label.
- * On LLM failure, logs the error and returns FALLBACK_DIFFICULTY so issue creation
- * can proceed — assessment is an enhancement, not a blocker (BE-003).
- */
-const assessComplexityStep = createStep({
-  id: WORKFLOW_STEP_IDS.assessComplexity,
-  description: "Assess issue complexity and determine difficulty label",
-  inputSchema: EvaluationResultSchema,
-  outputSchema: ComplexityResultSchema,
-  async execute({ inputData: _inputData, requestContext }) {
-    const thread = requestContext.get<"thread", Thread>("thread");
-
-    try {
-      const messages = thread.recentMessages.map((m) => ({
-        role: m.author.isMe ? "assistant" : "user",
-        content: m.text,
-      })) as ModelMessage[];
-
-      // Use the complexity agent with workspace access for domain-aware assessment.
-      // The agent automatically has list/read/search tools scoped to docs/domain.
-      const { object } = await complexityAgent.generate(messages, {
-        structuredOutput: {
-          schema: z.object({ difficulty: DifficultySchema }) as unknown as PublicSchema<{
-            difficulty: Difficulty;
-          }>,
-        },
-      });
-
-      logger.info(`[slack-triage] complexity assessed: difficulty=${object.difficulty}`);
-      return { difficulty: object.difficulty };
-    } catch (error) {
-      // BE-003: Log failure and degrade gracefully to safe default.
-      logger.warn(`[slack-triage] complexity assessment failed: ${(error as Error).message}`, {
-        error: error as Error,
-      });
-      return { difficulty: FALLBACK_DIFFICULTY };
-    }
-  },
-});
-
-/**
- * Helper function to create a Linear issue and post a custom closing message.
- * Parameterised by a message builder so the same logic can be shared between
- * the complete path (normal message) and the max-rounds path (partial-detail message).
- * Keeps issue-creation logic single-sourced (ARCH-001 / BE-001).
- */
-const createIssueWithMessage = async (
-  thread: Thread,
-  createLinearIssue: CreateLinearIssueCommand,
-  difficulty: Difficulty,
-  buildMessage: (url: string) => string,
-): Promise<void> => {
-  const { url } = await createLinearIssue.execute(thread.recentMessages, difficulty);
-  logger.info(`[slack-triage] Linear issue created: ${url}`);
-  const message = buildMessage(url);
-  await thread.post(message);
-  await thread.unsubscribe();
-};
-
-/**
- * Step 3: Create a Linear issue and post the URL to Slack.
- * Executed when the report is complete (after complexity assessment).
- * Receives the complexity result from assessComplexityStep and passes difficulty to the command.
- * Uses the shared helper with the normal "Linear issue created" message.
- * Unsubscribes from the thread after posting.
- */
-const createIssueStep = createStep({
-  id: WORKFLOW_STEP_IDS.createIssue,
-  description: "Create Linear issue from complete bug report",
-  inputSchema: ComplexityResultSchema,
-  outputSchema: z.object({}),
-  async execute({ inputData, requestContext }) {
-    const thread = requestContext.get<"thread", Thread>("thread");
-    const createLinearIssue = requestContext.get<"createLinearIssue", CreateLinearIssueCommand>(
-      "createLinearIssue",
-    );
-    await createIssueWithMessage(
-      thread,
-      createLinearIssue,
-      inputData.difficulty,
-      buildIssueCreatedMessage,
-    );
-    return {};
-  },
-});
-
-/**
- * Step: Create a Linear issue on the max-rounds path and post the partial-detail message.
- * Executed when the conversation reaches MAX_CLARIFICATION_ROUNDS without a complete report.
- * Receives the complexity result from assessComplexityStep.
- * Uses the shared helper with the partial-detail message builder.
- * Unsubscribes from the thread after posting.
- */
-const createIssueOnMaxRoundsStep = createStep({
-  id: `${WORKFLOW_STEP_IDS.createIssue}-max-rounds`,
-  description: "Create Linear issue from partial bug report when max rounds reached",
-  inputSchema: ComplexityResultSchema,
-  outputSchema: z.object({}),
-  async execute({ inputData, requestContext }) {
-    const thread = requestContext.get<"thread", Thread>("thread");
-    const createLinearIssue = requestContext.get<"createLinearIssue", CreateLinearIssueCommand>(
-      "createLinearIssue",
-    );
-    await createIssueWithMessage(
-      thread,
-      createLinearIssue,
-      inputData.difficulty,
-      buildMaxRoundsIssueCreatedMessage,
-    );
-    return {};
-  },
-});
-
-/**
- * Condition: Report is complete.
- */
-const isCompletionCondition = async (params: { inputData: EvaluationResult }): Promise<boolean> => {
-  return params.inputData.isComplete;
-};
-
-/**
- * Step 3: Post a clarifying question to the Slack thread.
- * Executed when the report is incomplete, there are remaining rounds, and a question exists.
- * Does not unsubscribe.
- */
-const askStep = createStep({
-  id: WORKFLOW_STEP_IDS.ask,
-  description: "Post clarifying question",
-  inputSchema: EvaluationResultSchema,
-  outputSchema: z.object({}),
-  async execute({ inputData, requestContext }) {
-    const thread = requestContext.get<"thread", Thread>("thread");
-    logger.info(`[slack-triage] posting clarifying question`);
-    await thread.post(inputData.clarifyingQuestion!);
-    return {};
-  },
-});
-
-/**
- * Condition: Report incomplete, rounds remaining, and question exists.
- */
-const hasQuestionAndRoundsCondition = async (params: {
-  inputData: EvaluationResult;
-}): Promise<boolean> => {
-  const { isComplete, clarifyingQuestion, botTurns } = params.inputData;
-  return !isComplete && botTurns < MAX_CLARIFICATION_ROUNDS && clarifyingQuestion !== null;
-};
-
-/**
- * Step 4: Escalate an unrecoverable triage as a workflow error.
- * Executed when rounds are exhausted or no clarifying question can be formed.
- *
- * Follows Mastra's official error-handling pattern — throwing inside `execute`
- * exits the workflow with a `failed` status
- * (https://mastra.ai/docs/workflows/error-handling). The thread is unsubscribed
- * first so the clarify loop stops, then the error is thrown; the coordinator
- * inspects `result.status === "failed"`, reports it via the logger util (BE-003),
- * and notifies the reporter in-thread.
- */
-const escalateStep = createStep({
-  id: WORKFLOW_STEP_IDS.escalate,
-  description: "Escalate unrecoverable triage as a workflow error",
-  inputSchema: EvaluationResultSchema,
-  outputSchema: z.object({}),
-  async execute({ inputData, requestContext }) {
-    const thread = requestContext.get<"thread", Thread>("thread");
-    // Local breadcrumb only (info → not forwarded to Rollbar). The single error
-    // report happens once at the coordinator when the run resolves failed (BE-003).
-    logger.info(
-      `[slack-triage] incomplete with rounds remaining but no clarifying question — escalating as workflow error`,
-    );
-    await thread.unsubscribe();
-    // Typed business error so the coordinator can post the insufficient-detail
-    // reply (a known, expected outcome) rather than the generic failure message.
-    throw new InsufficientBugDetailError(inputData.botTurns);
-  },
-});
-
-/**
- * Condition: Rounds exhausted (botTurns >= MAX_CLARIFICATION_ROUNDS) with incomplete report.
- * Takes precedence over clarifyingQuestion — even if a question exists, we still
- * create an issue on the max-rounds path per user decision: "Only max-rounds".
- */
-const maxRoundsCondition = async (params: { inputData: EvaluationResult }): Promise<boolean> => {
-  const { isComplete, botTurns } = params.inputData;
-  return !isComplete && botTurns >= MAX_CLARIFICATION_ROUNDS;
-};
-
-/**
- * Condition: Report incomplete, rounds remaining, but no clarifying question can be formed.
- * This is an unrecoverable edge case — the report is incomplete, we have rounds left,
- * but the agent cannot form a clarifying question. In this case, escalate as a failure.
- */
-const escalateCondition = async (params: { inputData: EvaluationResult }): Promise<boolean> => {
-  const { isComplete, botTurns, clarifyingQuestion } = params.inputData;
-  return !isComplete && botTurns < MAX_CLARIFICATION_ROUNDS && clarifyingQuestion === null;
-};
-
-/**
- * Nested completion workflow: chains assess complexity → create issue (complete path).
- * Maintains the disjoint partition property of the branch:
- * the completion condition selects this entire nested workflow as its target,
- * so only ONE of the four main branches runs per turn.
- */
-const completionWorkflow = createWorkflow({
-  id: `${WORKFLOW_NAMES.bugTriage}-completion`,
-  description: "Assess complexity and create Linear issue",
-  inputSchema: EvaluationResultSchema,
-  outputSchema: z.object({}),
-})
-  .then(assessComplexityStep)
-  .then(createIssueStep)
-  .commit();
-
-/**
- * Nested max-rounds workflow: chains assess complexity → create issue on partial detail path.
- * Executed when the clarification conversation reaches MAX_CLARIFICATION_ROUNDS without
- * a complete report. Reuses complexity assessment and issue creation, but posts a
- * distinct message to the reporter explaining the limitation.
- * Maintains the disjoint partition property: the maxRoundsCondition selects this
- * entire nested workflow as its target.
- */
-const maxRoundsWorkflow = createWorkflow({
-  id: `${WORKFLOW_NAMES.bugTriage}-max-rounds`,
-  description: "Assess complexity and create best-effort Linear issue when max rounds reached",
-  inputSchema: EvaluationResultSchema,
-  outputSchema: z.object({}),
-})
-  .then(assessComplexityStep)
-  .then(createIssueOnMaxRoundsStep)
-  .commit();
-
-/**
- * Bug Triage Workflow
- *
- * Orchestrates the Slack bug report clarification loop:
- * 1. Evaluate the report for completeness
- * 2. Branch on evaluation result (disjoint + exhaustive partition):
- *    - If complete: assess complexity → create Linear issue, post URL, unsubscribe
- *    - Else if rounds remaining + question exists: post question, continue
- *    - Else if rounds exhausted: assess complexity → create best-effort issue, post partial-detail message, unsubscribe
- *    - Else (rounds remaining + no question): unsubscribe and throw — the run resolves with a `failed` status for the coordinator to handle
- *
- * All dependencies (thread, queries, commands) are injected via runtimeContext.
- * This workflow is stateless per-run; conversation history is managed by the Chat SDK.
- */
-export const bugTriageWorkflow = createWorkflow({
-  id: WORKFLOW_NAMES.bugTriage,
-  description: "Evaluate Slack bug report, ask clarifying questions, or create Linear issue",
-  inputSchema: z.object({}),
-  outputSchema: z.object({}),
-})
-  .then(evaluateStep)
-  .branch([
-    [isCompletionCondition, completionWorkflow],
-    [hasQuestionAndRoundsCondition, askStep],
-    [maxRoundsCondition, maxRoundsWorkflow],
-    [escalateCondition, escalateStep],
-  ])
-  .commit();
-
-// Export steps, schemas, and conditions for testing
-export {
+  bugIntakeWorkflow,
+  featureIntakeWorkflow,
+} from "@/slack-bug-intake/workflow/intake.workflow";
+import {
+  EvaluationResultSchema,
   evaluateStep,
+  evaluateFeatureStep,
   assessComplexityStep,
   createIssueStep,
+  createFeatureIssueStep,
   createIssueOnMaxRoundsStep,
+  createFeatureIssueOnMaxRoundsStep,
   askStep,
   escalateStep,
   isCompletionCondition,
   hasQuestionAndRoundsCondition,
   maxRoundsCondition,
   escalateCondition,
+} from "@/slack-bug-intake/workflow/shared-steps";
+
+/**
+ * Schema for the intent classification result.
+ */
+const IntentResultSchema = z.object({
+  intent: z.enum([INTENT_KINDS.question, INTENT_KINDS.bug, INTENT_KINDS.featureRequest]),
+});
+
+type IntentResult = z.infer<typeof IntentResultSchema>;
+
+/**
+ * Step: Classify the incoming message intent.
+ * Delegates to ClassifyMessageQuery to determine if the user is asking a question,
+ * reporting a bug, or requesting a feature. Falls back to "bug" on error (EC1, BE-003).
+ */
+const classifyStep = createStep({
+  id: WORKFLOW_STEP_IDS.classify,
+  description: "Classify message intent as question, bug, or feature_request",
+  inputSchema: z.object({}),
+  outputSchema: IntentResultSchema,
+  async execute({ inputData: _inputData, requestContext }) {
+    const thread = requestContext.get<"thread", Thread>("thread");
+    const classifyMessage = requestContext.get<"classifyMessage", ClassifyMessageQuery>(
+      "classifyMessage",
+    );
+
+    try {
+      const result = await classifyMessage.execute(thread.recentMessages);
+      logger.info(`[slack-triage] classified: intent=${result.intent}`);
+      return result;
+    } catch (error) {
+      // EC1: Fall back to "bug" (never lose a report), log at warn (BE-003).
+      logger.warn(
+        `[slack-triage] classification failed, falling back to bug: ${(error as Error).message}`,
+        {
+          error: error as Error,
+        },
+      );
+      return { intent: INTENT_KINDS.bug };
+    }
+  },
+});
+
+/**
+ * Step: Answer a question in-thread and remain subscribed.
+ * Delegates to AnswerQuestionQuery to generate an answer. Posts the answer to the thread
+ * but does NOT unsubscribe (EC2: on failure, posts apology and stays subscribed).
+ */
+const answerQuestionStep = createStep({
+  id: WORKFLOW_STEP_IDS.answer,
+  description: "Answer question and remain subscribed",
+  inputSchema: IntentResultSchema,
+  outputSchema: z.object({}),
+  async execute({ inputData: _inputData, requestContext }) {
+    const thread = requestContext.get<"thread", Thread>("thread");
+    const answerQuestion = requestContext.get<"answerQuestion", AnswerQuestionQuery>(
+      "answerQuestion",
+    );
+
+    try {
+      const { answer } = await answerQuestion.execute(thread.recentMessages);
+      logger.info(`[slack-triage] answered question`);
+      await thread.post(answer);
+      return {};
+    } catch (error) {
+      // EC2: Post graceful apology, stay subscribed, log warn (BE-003).
+      logger.warn(`[slack-triage] answer generation failed: ${(error as Error).message}`, {
+        error: error as Error,
+      });
+      const failureMessage =
+        "I couldn't generate an answer to your question. I'm still monitoring this thread, so feel free to ask again or file an issue if you encounter a bug.";
+      await thread.post(failureMessage);
+      return {};
+    }
+  },
+});
+
+/**
+ * Conditions for intent branching.
+ */
+const isQuestionCondition = async (params: { inputData: IntentResult }): Promise<boolean> => {
+  return params.inputData.intent === INTENT_KINDS.question;
+};
+
+const isBugCondition = async (params: { inputData: IntentResult }): Promise<boolean> => {
+  return params.inputData.intent === INTENT_KINDS.bug;
+};
+
+const isFeatureRequestCondition = async (params: { inputData: IntentResult }): Promise<boolean> => {
+  return params.inputData.intent === INTENT_KINDS.featureRequest;
+};
+
+/**
+ * Main Bug Triage Workflow
+ *
+ * Top-level intent-aware triage router:
+ * 1. Classify the incoming message (question | bug | feature_request)
+ * 2. Route to the appropriate intake path
+ */
+export const bugTriageWorkflow = createWorkflow({
+  id: WORKFLOW_NAMES.bugTriage,
+  description:
+    "Intent-aware Slack message router: answer questions, triage bugs, or process feature requests",
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
+})
+  .then(classifyStep)
+  .branch([
+    [isQuestionCondition, answerQuestionStep],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [isBugCondition, bugIntakeWorkflow as any],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [isFeatureRequestCondition, featureIntakeWorkflow as any],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ] as any)
+  .commit();
+
+// Export steps, schemas, and conditions for testing
+export {
+  classifyStep,
+  answerQuestionStep,
+  evaluateStep,
+  evaluateFeatureStep,
+  assessComplexityStep,
+  createIssueStep,
+  createFeatureIssueStep,
+  createIssueOnMaxRoundsStep,
+  createFeatureIssueOnMaxRoundsStep,
+  askStep,
+  escalateStep,
+  isCompletionCondition,
+  hasQuestionAndRoundsCondition,
+  maxRoundsCondition,
+  escalateCondition,
+  isQuestionCondition,
+  isBugCondition,
+  isFeatureRequestCondition,
   EvaluationResultSchema,
-  ComplexityResultSchema,
-  type EvaluationResult,
-  type ComplexityResult,
+  IntentResultSchema,
+  type IntentResult,
 };

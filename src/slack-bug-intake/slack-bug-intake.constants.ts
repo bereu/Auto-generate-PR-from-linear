@@ -4,7 +4,17 @@ export const MAX_CLARIFICATION_ROUNDS = 5;
 
 export const DOMAIN_DOCS_DIR = "docs/domain";
 
+export const INTENT_KINDS = {
+  bug: "bug",
+  question: "question",
+  featureRequest: "feature_request",
+} as const;
+
+export type IntentKind = (typeof INTENT_KINDS)[keyof typeof INTENT_KINDS];
+
 export const LINEAR_AGENT_LABEL = "agent";
+
+export const LINEAR_FEATURE_LABEL = "feature";
 
 export const DIFFICULTY_LABELS = { easy: "easy", medium: "medium", hard: "hard" } as const;
 
@@ -92,4 +102,43 @@ Consider:
 - Reproducibility: Consistent (easy) or intermittent (hard)?
 
 Return difficulty as "easy", "medium", or "hard".
+`.trim();
+
+export const INTENT_CLASSIFY_SYSTEM_PROMPT = `
+You are a message classifier. Analyze the most recent message in the conversation and determine the user's intent.
+
+Classify as one of:
+- "question": User is asking how something works or requesting information/clarification (not reporting a bug or requesting a feature).
+- "bug": User is reporting a problem, defect, or unexpected behaviour.
+- "feature_request": User is requesting a new capability or improvement to the product.
+
+Bias towards "bug" or "feature_request" when actionable detail is present. When in doubt about distinguishing question from other intents, prefer the one most likely based on the context and tone.
+`.trim();
+
+export const QUESTION_ANSWER_SYSTEM_PROMPT = `
+You are a helpful assistant answering questions about the product.
+
+Provide a clear, concise answer that directly addresses the user's question. You may cite domain documentation if relevant, but general product knowledge is also acceptable. Keep your answer practical and actionable.
+`.trim();
+
+export const FEATURE_EVALUATE_SYSTEM_PROMPT = `
+You are a feature request evaluator. Assess whether the feature request is complete and actionable.
+
+Consider whether the request includes:
+1. A clear description of what the user wants
+2. The motivation or problem it solves
+3. Any relevant context about the use case
+
+If the request lacks critical detail: set isComplete to false and provide ONE focused clarifying question.
+If the request is sufficiently detailed: set isComplete to true and clarifyingQuestion to null.
+`.trim();
+
+export const FEATURE_FORMAT_SYSTEM_PROMPT = `
+You are a feature request formatter. Given the conversation, produce:
+- title: a concise one-line summary of the feature request (max 80 chars)
+- description: a well-structured markdown description with these sections:
+  ## Summary
+  ## Problem / Motivation
+  ## Proposed Solution
+  ## Use Cases
 `.trim();

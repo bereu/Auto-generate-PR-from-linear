@@ -7,8 +7,11 @@ import { BugReport } from "@/domain/bug-report/bug-report";
 import { LinearTransfer } from "@/transfer/linear.transfer";
 import {
   LINEAR_AGENT_LABEL,
+  LINEAR_FEATURE_LABEL,
   DIFFICULTY_LABELS,
+  INTENT_KINDS,
   type DifficultyLabel,
+  type IntentKind,
 } from "@/slack-bug-intake/slack-bug-intake.constants";
 import { LINEAR_STATES } from "@/repos.config";
 import { langfuse } from "@/util/langfuse";
@@ -23,26 +26,27 @@ const FormatSchema = z.object({
 export class CreateLinearIssueCommand {
   constructor(@Inject(LinearTransfer) private readonly linearTransfer: LinearTransfer) {}
 
-  async execute(recentMessages: Message[], difficulty?: DifficultyLabel): Promise<{ url: string }> {
+  async execute(
+    recentMessages: Message[],
+    difficulty?: DifficultyLabel,
+    kind?: IntentKind,
+  ): Promise<{ url: string }> {
     const messages = recentMessages.map((m) => ({
       role: (m.author.isMe ? "assistant" : "user") as "user" | "assistant",
       content: m.text,
     }));
 
+    const systemPrompt = await this.selectSystemPrompt(kind);
+
     const { object } = await generateObject({
       model: anthropic(AGENT_MODELS.bugTriage),
-      system: await langfuse.fetchFormatPrompt(),
+      system: systemPrompt,
       messages,
       schema: FormatSchema,
     });
 
     const bugReport = BugReport.create(object.title, object.description);
-
-    // Build label names: always include agent label; optionally add difficulty.
-    const labelNames = [LINEAR_AGENT_LABEL];
-    if (difficulty && difficulty in DIFFICULTY_LABELS) {
-      labelNames.push(difficulty);
-    }
+    const labelNames = this.buildLabelNames(kind, difficulty);
 
     return this.linearTransfer.createIssue({
       title: bugReport.title(),
@@ -50,5 +54,22 @@ export class CreateLinearIssueCommand {
       labelNames,
       stateName: LINEAR_STATES.todo,
     });
+  }
+
+  private async selectSystemPrompt(kind?: IntentKind): Promise<string> {
+    return kind === INTENT_KINDS.featureRequest
+      ? await langfuse.fetchFeatureFormatPrompt()
+      : await langfuse.fetchFormatPrompt();
+  }
+
+  private buildLabelNames(kind?: IntentKind, difficulty?: DifficultyLabel): string[] {
+    const labelNames = [LINEAR_AGENT_LABEL];
+    if (kind === INTENT_KINDS.featureRequest) {
+      labelNames.push(LINEAR_FEATURE_LABEL);
+    }
+    if (difficulty && difficulty in DIFFICULTY_LABELS) {
+      labelNames.push(difficulty);
+    }
+    return labelNames;
   }
 }
