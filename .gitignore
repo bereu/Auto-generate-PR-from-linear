@@ -35,3 +35,7 @@ dist-ssr
 # APM dependencies
 apm_modules/
 .tokensave
+
+# Domain documentation (auto-generated)
+docs/domain/
+@docs/domain/*
