@@ -5,7 +5,6 @@ paths:
 
 # overview
 
-- define spec with grill-me skill with communicator
 - create spec. markdown document.
 - hand off implementration to executor agent
 - execute agent make changes with implement.md document.
