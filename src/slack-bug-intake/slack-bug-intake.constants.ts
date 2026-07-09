@@ -37,6 +37,18 @@ export const ERROR_RESPONSE_MESSAGES = {
  */
 export const WORKFLOW_ERROR_MESSAGE = ERROR_RESPONSE_MESSAGES.unknown;
 
+/**
+ * Slack reply posted when the clarification loop reaches MAX_CLARIFICATION_ROUNDS
+ * without a complete report. Rather than failing, the bot files a best-effort Linear
+ * issue from the detail gathered so far and tells the reporter what happened.
+ */
+export const buildMaxRoundsIssueCreatedMessage = (url: string): string =>
+  `I couldn't gather full details after ${MAX_CLARIFICATION_ROUNDS} clarification rounds, ` +
+  `so I've filed a Linear issue with the information we have so far: ${url}`;
+
+/** Slack reply posted when an issue is created from a complete bug report. */
+export const buildIssueCreatedMessage = (url: string): string => `Linear issue created: ${url}`;
+
 export const TRIAGE_SYSTEM_PROMPT = `
 You are a bug triage assistant. Evaluate whether the conversation contains:
 1. A clear summary of the problem

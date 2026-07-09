@@ -8,6 +8,8 @@ import type { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create
 import {
   MAX_CLARIFICATION_ROUNDS,
   FALLBACK_DIFFICULTY,
+  buildMaxRoundsIssueCreatedMessage,
+  buildIssueCreatedMessage,
 } from "@/slack-bug-intake/slack-bug-intake.constants";
 import { WORKFLOW_NAMES, WORKFLOW_STEP_IDS } from "@/constants/mastra.constants";
 import { InsufficientBugDetailError } from "@/constants/errors/business.error";
@@ -111,9 +113,29 @@ const assessComplexityStep = createStep({
 });
 
 /**
+ * Helper function to create a Linear issue and post a custom closing message.
+ * Parameterised by a message builder so the same logic can be shared between
+ * the complete path (normal message) and the max-rounds path (partial-detail message).
+ * Keeps issue-creation logic single-sourced (ARCH-001 / BE-001).
+ */
+const createIssueWithMessage = async (
+  thread: Thread,
+  createLinearIssue: CreateLinearIssueCommand,
+  difficulty: Difficulty,
+  buildMessage: (url: string) => string,
+): Promise<void> => {
+  const { url } = await createLinearIssue.execute(thread.recentMessages, difficulty);
+  logger.info(`[slack-triage] Linear issue created: ${url}`);
+  const message = buildMessage(url);
+  await thread.post(message);
+  await thread.unsubscribe();
+};
+
+/**
  * Step 3: Create a Linear issue and post the URL to Slack.
  * Executed when the report is complete (after complexity assessment).
  * Receives the complexity result from assessComplexityStep and passes difficulty to the command.
+ * Uses the shared helper with the normal "Linear issue created" message.
  * Unsubscribes from the thread after posting.
  */
 const createIssueStep = createStep({
@@ -126,10 +148,39 @@ const createIssueStep = createStep({
     const createLinearIssue = requestContext.get<"createLinearIssue", CreateLinearIssueCommand>(
       "createLinearIssue",
     );
-    const { url } = await createLinearIssue.execute(thread.recentMessages, inputData.difficulty);
-    logger.info(`[slack-triage] Linear issue created: ${url}`);
-    await thread.post(`Linear issue created: ${url}`);
-    await thread.unsubscribe();
+    await createIssueWithMessage(
+      thread,
+      createLinearIssue,
+      inputData.difficulty,
+      buildIssueCreatedMessage,
+    );
+    return {};
+  },
+});
+
+/**
+ * Step: Create a Linear issue on the max-rounds path and post the partial-detail message.
+ * Executed when the conversation reaches MAX_CLARIFICATION_ROUNDS without a complete report.
+ * Receives the complexity result from assessComplexityStep.
+ * Uses the shared helper with the partial-detail message builder.
+ * Unsubscribes from the thread after posting.
+ */
+const createIssueOnMaxRoundsStep = createStep({
+  id: `${WORKFLOW_STEP_IDS.createIssue}-max-rounds`,
+  description: "Create Linear issue from partial bug report when max rounds reached",
+  inputSchema: ComplexityResultSchema,
+  outputSchema: z.object({}),
+  async execute({ inputData, requestContext }) {
+    const thread = requestContext.get<"thread", Thread>("thread");
+    const createLinearIssue = requestContext.get<"createLinearIssue", CreateLinearIssueCommand>(
+      "createLinearIssue",
+    );
+    await createIssueWithMessage(
+      thread,
+      createLinearIssue,
+      inputData.difficulty,
+      buildMaxRoundsIssueCreatedMessage,
+    );
     return {};
   },
 });
@@ -189,7 +240,9 @@ const escalateStep = createStep({
     const thread = requestContext.get<"thread", Thread>("thread");
     // Local breadcrumb only (info → not forwarded to Rollbar). The single error
     // report happens once at the coordinator when the run resolves failed (BE-003).
-    logger.info(`[slack-triage] rounds exhausted or no question — escalating as workflow error`);
+    logger.info(
+      `[slack-triage] incomplete with rounds remaining but no clarifying question — escalating as workflow error`,
+    );
     await thread.unsubscribe();
     // Typed business error so the coordinator can post the insufficient-detail
     // reply (a known, expected outcome) rather than the generic failure message.
@@ -198,20 +251,30 @@ const escalateStep = createStep({
 });
 
 /**
- * Fallback condition: neither complete nor (incomplete + question + rounds remaining).
- * Ensures exactly ONE branch runs per turn (disjoint partition with completion and ask conditions).
+ * Condition: Rounds exhausted (botTurns >= MAX_CLARIFICATION_ROUNDS) with incomplete report.
+ * Takes precedence over clarifyingQuestion — even if a question exists, we still
+ * create an issue on the max-rounds path per user decision: "Only max-rounds".
  */
-const fallbackCondition = async (params: { inputData: EvaluationResult }): Promise<boolean> => {
-  const complete = await isCompletionCondition(params);
-  const askable = await hasQuestionAndRoundsCondition(params);
-  return !complete && !askable;
+const maxRoundsCondition = async (params: { inputData: EvaluationResult }): Promise<boolean> => {
+  const { isComplete, botTurns } = params.inputData;
+  return !isComplete && botTurns >= MAX_CLARIFICATION_ROUNDS;
 };
 
 /**
- * Nested completion workflow: chains assess complexity → create issue.
+ * Condition: Report incomplete, rounds remaining, but no clarifying question can be formed.
+ * This is an unrecoverable edge case — the report is incomplete, we have rounds left,
+ * but the agent cannot form a clarifying question. In this case, escalate as a failure.
+ */
+const escalateCondition = async (params: { inputData: EvaluationResult }): Promise<boolean> => {
+  const { isComplete, botTurns, clarifyingQuestion } = params.inputData;
+  return !isComplete && botTurns < MAX_CLARIFICATION_ROUNDS && clarifyingQuestion === null;
+};
+
+/**
+ * Nested completion workflow: chains assess complexity → create issue (complete path).
  * Maintains the disjoint partition property of the branch:
  * the completion condition selects this entire nested workflow as its target,
- * so only ONE of the three main branches runs per turn.
+ * so only ONE of the four main branches runs per turn.
  */
 const completionWorkflow = createWorkflow({
   id: `${WORKFLOW_NAMES.bugTriage}-completion`,
@@ -224,15 +287,33 @@ const completionWorkflow = createWorkflow({
   .commit();
 
 /**
+ * Nested max-rounds workflow: chains assess complexity → create issue on partial detail path.
+ * Executed when the clarification conversation reaches MAX_CLARIFICATION_ROUNDS without
+ * a complete report. Reuses complexity assessment and issue creation, but posts a
+ * distinct message to the reporter explaining the limitation.
+ * Maintains the disjoint partition property: the maxRoundsCondition selects this
+ * entire nested workflow as its target.
+ */
+const maxRoundsWorkflow = createWorkflow({
+  id: `${WORKFLOW_NAMES.bugTriage}-max-rounds`,
+  description: "Assess complexity and create best-effort Linear issue when max rounds reached",
+  inputSchema: EvaluationResultSchema,
+  outputSchema: z.object({}),
+})
+  .then(assessComplexityStep)
+  .then(createIssueOnMaxRoundsStep)
+  .commit();
+
+/**
  * Bug Triage Workflow
  *
  * Orchestrates the Slack bug report clarification loop:
  * 1. Evaluate the report for completeness
- * 2. Branch on evaluation result:
+ * 2. Branch on evaluation result (disjoint + exhaustive partition):
  *    - If complete: assess complexity → create Linear issue, post URL, unsubscribe
  *    - Else if rounds remaining + question exists: post question, continue
- *    - Else (no question or max rounds): unsubscribe and throw — the run
- *      resolves with a `failed` status for the coordinator to handle
+ *    - Else if rounds exhausted: assess complexity → create best-effort issue, post partial-detail message, unsubscribe
+ *    - Else (rounds remaining + no question): unsubscribe and throw — the run resolves with a `failed` status for the coordinator to handle
  *
  * All dependencies (thread, queries, commands) are injected via runtimeContext.
  * This workflow is stateless per-run; conversation history is managed by the Chat SDK.
@@ -247,7 +328,8 @@ export const bugTriageWorkflow = createWorkflow({
   .branch([
     [isCompletionCondition, completionWorkflow],
     [hasQuestionAndRoundsCondition, askStep],
-    [fallbackCondition, escalateStep],
+    [maxRoundsCondition, maxRoundsWorkflow],
+    [escalateCondition, escalateStep],
   ])
   .commit();
 
@@ -256,11 +338,13 @@ export {
   evaluateStep,
   assessComplexityStep,
   createIssueStep,
+  createIssueOnMaxRoundsStep,
   askStep,
   escalateStep,
   isCompletionCondition,
   hasQuestionAndRoundsCondition,
-  fallbackCondition,
+  maxRoundsCondition,
+  escalateCondition,
   EvaluationResultSchema,
   ComplexityResultSchema,
   type EvaluationResult,
