@@ -20,7 +20,9 @@ export const AGENT_MODELS = {
 } as const;
 
 export const WORKFLOW_NAMES = {
-  bugTriage: "bug-triage",
+  // Top-level intent router (formerly "bug-triage" — it now handles all intents).
+  triage: "triage",
+  question: "question-intake",
   bugIntake: "bug-intake",
   featureIntake: "feature-intake",
 } as const;

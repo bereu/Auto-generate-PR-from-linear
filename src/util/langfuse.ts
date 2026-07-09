@@ -9,7 +9,7 @@ import {
   QUESTION_ANSWER_SYSTEM_PROMPT,
   FEATURE_EVALUATE_SYSTEM_PROMPT,
   FEATURE_FORMAT_SYSTEM_PROMPT,
-} from "@/slack-bug-intake/slack-bug-intake.constants";
+} from "@/slack-triage/slack-triage.constants";
 import { promptLoader } from "@/util/prompt-loader";
 
 const TASK_PROMPT_NAME = "task";
