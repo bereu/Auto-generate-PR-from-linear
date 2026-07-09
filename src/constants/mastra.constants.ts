@@ -3,6 +3,7 @@
 
 export const AGENT_NAMES = {
   bugTriage: "bug-triage",
+  complexity: "complexity",
 } as const;
 
 export type AgentName = (typeof AGENT_NAMES)[keyof typeof AGENT_NAMES];

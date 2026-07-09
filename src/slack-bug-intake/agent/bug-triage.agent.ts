@@ -3,6 +3,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 import { AGENT_NAMES, AGENT_MODELS } from "@/constants/mastra.constants";
 import { langfuse } from "@/util/langfuse";
+import { domainDocsWorkspace } from "@/slack-bug-intake/agent/domain-docs.workspace";
 
 /**
  * Structured output contract for the bug-triage agent.
@@ -29,4 +30,5 @@ export const bugTriageAgent = new Agent({
   name: AGENT_NAMES.bugTriage,
   instructions: async () => langfuse.fetchTriagePrompt(),
   model: anthropic(AGENT_MODELS.bugTriage),
+  workspace: domainDocsWorkspace,
 });

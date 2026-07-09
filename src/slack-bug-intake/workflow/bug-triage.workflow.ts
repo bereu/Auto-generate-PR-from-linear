@@ -1,18 +1,21 @@
 import { z } from "zod";
-import { generateObject } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
+import type { ModelMessage } from "ai";
 import { createWorkflow, createStep } from "@mastra/core/workflows";
+import type { PublicSchema } from "@mastra/core/schema";
 import type { Thread } from "chat";
 import type { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
 import type { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
 import {
   MAX_CLARIFICATION_ROUNDS,
-  DIFFICULTY_VALUES,
   FALLBACK_DIFFICULTY,
 } from "@/slack-bug-intake/slack-bug-intake.constants";
-import { WORKFLOW_NAMES, WORKFLOW_STEP_IDS, AGENT_MODELS } from "@/constants/mastra.constants";
+import { WORKFLOW_NAMES, WORKFLOW_STEP_IDS } from "@/constants/mastra.constants";
 import { logger } from "@/util/logger";
-import { langfuse } from "@/util/langfuse";
+import {
+  complexityAgent,
+  DifficultySchema,
+  type Difficulty,
+} from "@/slack-bug-intake/agent/complexity.agent";
 
 /**
  * Schema for the evaluation result produced by evaluateStep.
@@ -28,10 +31,8 @@ type EvaluationResult = z.infer<typeof EvaluationResultSchema>;
 
 /**
  * Schema for the complexity result produced by assessComplexityStep.
- * Includes the difficulty assessment from inline LLM call.
+ * Includes the difficulty assessment from the complexity agent.
  */
-const DifficultySchema = z.enum(DIFFICULTY_VALUES);
-
 const ComplexityResultSchema = z.object({
   difficulty: DifficultySchema,
 });
@@ -66,7 +67,7 @@ const evaluateStep = createStep({
 
 /**
  * Step 2: Assess the complexity of the bug report.
- * Performed inline via generateObject; no separate query class.
+ * Uses the complexity agent with workspace access to domain docs.
  * Executed after evaluation confirms the report is complete, before creating the issue.
  * Returns a difficulty rating (easy | medium | hard) that will be added as a label.
  * On LLM failure, logs the error and returns FALLBACK_DIFFICULTY so issue creation
@@ -82,17 +83,18 @@ const assessComplexityStep = createStep({
 
     try {
       const messages = thread.recentMessages.map((m) => ({
-        role: (m.author.isMe ? "assistant" : "user") as "user" | "assistant",
+        role: m.author.isMe ? "assistant" : "user",
         content: m.text,
-      }));
+      })) as ModelMessage[];
 
-      const system = await langfuse.fetchComplexityPrompt();
-
-      const { object } = await generateObject({
-        model: anthropic(AGENT_MODELS.complexity),
-        system,
-        messages,
-        schema: z.object({ difficulty: DifficultySchema }),
+      // Use the complexity agent with workspace access for domain-aware assessment.
+      // The agent automatically has list/read/search tools scoped to docs/domain.
+      const { object } = await complexityAgent.generate(messages, {
+        structuredOutput: {
+          schema: z.object({ difficulty: DifficultySchema }) as unknown as PublicSchema<{
+            difficulty: Difficulty;
+          }>,
+        },
       });
 
       logger.info(`[slack-triage] complexity assessed: difficulty=${object.difficulty}`);
