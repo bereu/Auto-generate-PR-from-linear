@@ -7,6 +7,7 @@
 - `docs/adr/ARCH-001-production-architecture.md` : production inflastructure and user story.
 - `docs/adr/BE-001-layer-architecture.md` : code architecture.
 - `docs/adr/GEN-002-project-folder-structure.md` : folder structures.
+- `docs/E2E-guidance.md` : End-to-End (E2E) testing and integration guidance.
 
 # Code
 

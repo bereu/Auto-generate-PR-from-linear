@@ -99,7 +99,7 @@ export async function syncAllRepos(): Promise<SyncAllResult> {
   logger.info(`[sync] done — ${synced.length} ok, ${failed.length} failed`);
   logger.info("[sync] =====================================\n");
 
-  if (synced.length === 0) {
+  if (!synced.length) {
     throw new Error(SYSTEM_ERRORS.syncAllFailed);
   }
 

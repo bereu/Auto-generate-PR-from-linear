@@ -2,7 +2,7 @@
 id: BE-004
 title: Test-for-bussiness-logic
 domain: backend
-rules: false
+rules: true
 ---
 
 # Test-for-bussiness-logic
@@ -24,14 +24,18 @@ To ensure the reliability and correctness of our application, we must have an au
 
 ### Do
 
-- Do write unit tests that cover the core behavior, edge cases, and expected failures within the coordinator, query, and command layers.
+- Do write unit tests **ONLY** for: **Coordinator**, **Query**, and **Command** layers.
+- Do write unit tests that cover the core behavior, edge cases, and expected failures within these three layers.
 - Do use descriptive test names that clearly explain the business rule being verified.
+- Do integrate test files in `server/test` directory alongside the layer files.
 
 ### Don't
 
+- **Don't write test files for any other layers** (Repository, DataSource, Transfer, etc.). Tests are ONLY for Coordinator, Query, and Command.
 - Don't skip writing unit tests for business logic under the pretext of deadline pressure.
 - Don't tightly couple unit tests to implementation details; focus on testing inputs and expected outputs/behavior.
-- Don't mock bottom layer. ex: system try to test Query, Repository should not be mocked.
+- Don't mock bottom layer. ex: when testing Query, Repository should not be mocked.
+- Don't create test files for infrastructure or data access layers.
 
 ## Consequences
 

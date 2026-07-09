@@ -1,18 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
 import { makeTestMessage } from "@/test/message-helper";
+import type { LocalFilesystem } from "@mastra/core/workspace";
+import path from "path";
+import { DOMAIN_DOCS_DIR } from "@/slack-bug-intake/slack-bug-intake.constants";
 
-vi.mock("ai", () => ({
-  generateObject: vi.fn(),
-}));
+const FIRST_CALL = 0;
+const FIRST_ARG = 0;
+const SECOND_ARG = 1;
 
-vi.mock("@ai-sdk/anthropic", () => ({
-  anthropic: vi.fn(() => "mock-model"),
-}));
+const { generateMock } = vi.hoisted(() => ({ generateMock: vi.fn() }));
 
-import { generateObject } from "ai";
+vi.mock("@/slack-bug-intake/agent/bug-triage.agent", async () => {
+  const { z } = await import("zod");
+  return {
+    bugTriageAgent: { generate: generateMock },
+    EvaluationSchema: z.object({
+      isComplete: z.boolean(),
+      clarifyingQuestion: z.string().nullable(),
+    }),
+  };
+});
 
-describe("EvaluateBugReportQuery", () => {
+describe("EvaluateBugReportQuery - report completion", () => {
   let query: EvaluateBugReportQuery;
 
   beforeEach(() => {
@@ -21,9 +31,7 @@ describe("EvaluateBugReportQuery", () => {
   });
 
   it("returns isComplete true and null question when report is complete", async () => {
-    vi.mocked(generateObject).mockResolvedValue({
-      object: { isComplete: true, clarifyingQuestion: null },
-    } as never);
+    generateMock.mockResolvedValue({ object: { isComplete: true, clarifyingQuestion: null } });
 
     const messages = [makeTestMessage("Here is my complete bug report with all details.", false)];
     const result = await query.execute(messages);
@@ -33,12 +41,12 @@ describe("EvaluateBugReportQuery", () => {
   });
 
   it("returns isComplete false with question when steps to reproduce are missing", async () => {
-    vi.mocked(generateObject).mockResolvedValue({
+    generateMock.mockResolvedValue({
       object: {
         isComplete: false,
         clarifyingQuestion: "Could you provide the steps to reproduce this issue?",
       },
-    } as never);
+    });
 
     const messages = [makeTestMessage("The button is broken.", false)];
     const result = await query.execute(messages);
@@ -46,26 +54,20 @@ describe("EvaluateBugReportQuery", () => {
     expect(result.isComplete).toBe(false);
     expect(result.clarifyingQuestion).toBe("Could you provide the steps to reproduce this issue?");
   });
+});
 
-  it("returns isComplete false with question when environment is missing", async () => {
-    vi.mocked(generateObject).mockResolvedValue({
-      object: {
-        isComplete: false,
-        clarifyingQuestion: "What OS and browser are you using?",
-      },
-    } as never);
+describe("EvaluateBugReportQuery - message role mapping", () => {
+  let query: EvaluateBugReportQuery;
 
-    const messages = [makeTestMessage("Login fails when I click submit.", false)];
-    const result = await query.execute(messages);
-
-    expect(result.isComplete).toBe(false);
-    expect(result.clarifyingQuestion).toBe("What OS and browser are you using?");
+  beforeEach(() => {
+    query = new EvaluateBugReportQuery();
+    vi.clearAllMocks();
   });
 
   it("maps bot messages to role assistant and user messages to role user", async () => {
-    vi.mocked(generateObject).mockResolvedValue({
+    generateMock.mockResolvedValue({
       object: { isComplete: false, clarifyingQuestion: "What environment?" },
-    } as never);
+    });
 
     const messages = [
       makeTestMessage("The button is broken.", false),
@@ -75,27 +77,61 @@ describe("EvaluateBugReportQuery", () => {
 
     await query.execute(messages);
 
-    const callArgs = vi.mocked(generateObject).mock.calls[0][0] as { messages: unknown[] };
-    expect(callArgs.messages).toEqual([
+    const callArgs = generateMock.mock.calls[FIRST_CALL][FIRST_ARG] as unknown[];
+    expect(callArgs).toEqual([
       { role: "user", content: "The button is broken." },
       { role: "assistant", content: "Can you describe the expected behaviour?" },
       { role: "user", content: "I expected it to submit the form." },
     ]);
   });
+});
 
-  it("calls generateObject with the correct model and system prompt", async () => {
-    vi.mocked(generateObject).mockResolvedValue({
+describe("EvaluateBugReportQuery - agent configuration", () => {
+  let query: EvaluateBugReportQuery;
+
+  beforeEach(() => {
+    query = new EvaluateBugReportQuery();
+    vi.clearAllMocks();
+  });
+
+  it("passes the structured output schema to the agent", async () => {
+    generateMock.mockResolvedValue({
       object: { isComplete: true, clarifyingQuestion: null },
-    } as never);
+    });
 
     await query.execute([makeTestMessage("report", false)]);
 
-    expect(generateObject).toHaveBeenCalledOnce();
-    const callArgs = vi.mocked(generateObject).mock.calls[0][0] as {
-      model: unknown;
-      system: string;
+    expect(generateMock).toHaveBeenCalledOnce();
+    const options = generateMock.mock.calls[FIRST_CALL][SECOND_ARG] as {
+      structuredOutput: { schema: unknown };
     };
-    expect(callArgs.model).toBe("mock-model");
-    expect(callArgs.system).toContain("bug triage assistant");
+    expect(options.structuredOutput.schema).toBeDefined();
+  });
+});
+
+describe("EvaluateBugReportQuery - workspace integration", () => {
+  it("should have domain docs workspace configured for read-only file access", async () => {
+    // Import and verify the workspace is properly configured.
+    // This test verifies that the agent has access to domain docs via the workspace.
+    const { domainDocsWorkspace } = await import("@/slack-bug-intake/agent/domain-docs.workspace");
+
+    expect(domainDocsWorkspace).toBeDefined();
+    expect(domainDocsWorkspace.filesystem).toBeDefined();
+  });
+
+  it("should have workspace with basePath pointing to DOMAIN_DOCS_DIR", async () => {
+    const { domainDocsWorkspace } = await import("@/slack-bug-intake/agent/domain-docs.workspace");
+
+    const expectedBasePath = path.resolve(DOMAIN_DOCS_DIR);
+    const filesystem = domainDocsWorkspace.filesystem as LocalFilesystem;
+
+    expect(filesystem.basePath).toBe(expectedBasePath);
+  });
+
+  it("should have read-only enabled on workspace filesystem", async () => {
+    const { domainDocsWorkspace } = await import("@/slack-bug-intake/agent/domain-docs.workspace");
+
+    const filesystem = domainDocsWorkspace.filesystem as LocalFilesystem;
+    expect(filesystem.readOnly).toBe(true);
   });
 });

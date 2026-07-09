@@ -1,0 +1,44 @@
+lockfile_version: "1"
+generated_at: "2026-07-04T01:10:30.744558+00:00"
+apm_version: 0.21.0
+dependencies:
+  - repo_url: bereu/own-AI-agents.settings
+    host: github.com
+    resolved_commit: c23a1b74833bd12099328dfba94b4371c55affc4
+    package_type: apm_package
+    deployed_files:
+      - .claude/agents/executor.md
+      - .claude/agents/planner.md
+      - .claude/agents/validator.md
+      - .claude/rules/agent.md
+      - .claude/rules/code-review.md
+      - .claude/rules/design-testing.md
+      - .claude/rules/development-flow.md
+      - .claude/rules/naming.md
+      - .claude/skills/implement-feature
+      - .claude/skills/implement-feature/SKILL.md
+      - .claude/skills/implement-feature/asset/template-implement.md
+      - .claude/skills/plan-spec
+      - .claude/skills/plan-spec/SKILL.md
+      - .claude/skills/plan-spec/asset/template-plan.md
+      - .claude/skills/plan-spec/asset/template-test.md
+      - .claude/skills/qa-features-skills
+      - .claude/skills/qa-features-skills/SKILL.md
+      - .claude/skills/qa-features-skills/example.md
+    deployed_file_hashes:
+      .claude/agents/executor.md: sha256:7ad3adbc964f3588efe6423119b28724e7a0f58247f5071833172bb841de2de6
+      .claude/agents/planner.md: sha256:e4c4858b8471f67efa6a6f2b680dad29999e8e1711529512fe3eff89c8245f7c
+      .claude/agents/validator.md: sha256:5f06918f9da2224f8674423e226d1ea8a429eaa631519ca8be24dc74e5de9c1c
+      .claude/rules/agent.md: sha256:13a606c0f3329697d629d69f992362d2123bddf5ec047d9ce4138e968a9384d8
+      .claude/rules/code-review.md: sha256:586e8b11cc7b714527a59f96f3190ec299b80862c78bf78afced49fdf2191ebb
+      .claude/rules/design-testing.md: sha256:47c134326befd1e717419f8bfa7c6e3444fce9d085455112d71e33f594158513
+      .claude/rules/development-flow.md: sha256:2a2d77e7f7f07bd713de5fbfb223e6abc7ff6c43fc78026b4cb2e2458a1a6974
+      .claude/rules/naming.md: sha256:ae77bb850e8fd9f1eaf6efb2d4aa7bb6e0b0ecfa5235f2b0f06c215a56fb3a0c
+      .claude/skills/implement-feature/SKILL.md: sha256:7ad4a94ef93ad69906854ef5f0bfba7b75d840d7864818e2f4e4340729fb356c
+      .claude/skills/implement-feature/asset/template-implement.md: sha256:306e2095292c7a92b53dc3da7ffd9c5e851a077bb7dbb7bbd2ccf0890cc1fb3a
+      .claude/skills/plan-spec/SKILL.md: sha256:4ddb242660cf9dffe9d1fdea4f52c3369db7246e6b02b64b22c0d0d0fe23d5a1
+      .claude/skills/plan-spec/asset/template-plan.md: sha256:d9f1994bf8c395021e6a691518921c1bf6fb0d0eb35b2e862a3d568ded87b8cc
+      .claude/skills/plan-spec/asset/template-test.md: sha256:686e6ded0aab1b977139ba4b500eaa62147c08a296216e3c27cfbba7a20469d6
+      .claude/skills/qa-features-skills/SKILL.md: sha256:1cefaef4f251f801be8aef786ace5cf4d91aca5e14a413e0ee8e28962fe7e6e1
+      .claude/skills/qa-features-skills/example.md: sha256:3874f162bdbfbe13e5fea418afb1baaf236020b6dc75e044ca1a6c846149bd60
+    content_hash: sha256:9fc69561b227c690247aefa2c3576aaa464c82459a05a57db05ad284350a2f37

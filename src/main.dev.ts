@@ -7,6 +7,8 @@ import { validateEnv, createApp } from "@/create-app";
 import { logger } from "@/util/logger";
 import { WEBHOOK_PORT } from "@/repos.config";
 
+const EXIT_CODE_ERROR = 1;
+
 async function bootstrap(): Promise<void> {
   validateEnv();
   logger.info("🧪 [DEV] Starting webhook server (repo sync skipped)");
@@ -20,5 +22,5 @@ async function bootstrap(): Promise<void> {
 
 bootstrap().catch((err: Error) => {
   logger.error(`Fatal: ${err.message}`);
-  process.exit(1);
+  process.exit(EXIT_CODE_ERROR);
 });

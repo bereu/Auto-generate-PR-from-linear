@@ -34,27 +34,52 @@ export interface RawWebhookPayload {
 
 @Injectable()
 export class ImplementIssueCommand {
-  implement(payload: RawWebhookPayload): void {
-    if (payload.type !== ISSUE_EVENT_TYPE) return;
-    if (!(ISSUE_TRIGGER_ACTIONS as readonly string[]).includes(payload.action)) return;
+  private isValidEventType(payload: RawWebhookPayload): boolean {
+    return payload.type === ISSUE_EVENT_TYPE;
+  }
 
-    const { data } = payload;
-    if (!data.labels.some((l) => l.name === LINEAR_LABEL)) return;
-    if (data.state.name !== LINEAR_STATES.todo) return;
+  private isValidAction(payload: RawWebhookPayload): boolean {
+    return (ISSUE_TRIGGER_ACTIONS as readonly string[]).includes(payload.action);
+  }
 
-    const issue = LinearIssue.reconstruct(
+  private hasAgentLabel(data: RawWebhookData): boolean {
+    return data.labels.some((l) => l.name === LINEAR_LABEL);
+  }
+
+  private isInTodoState(data: RawWebhookData): boolean {
+    return data.state.name === LINEAR_STATES.todo;
+  }
+
+  private shouldProcess(payload: RawWebhookPayload): boolean {
+    if (!this.isValidEventType(payload)) return false;
+    if (!this.isValidAction(payload)) return false;
+    if (!this.hasAgentLabel(payload.data)) return false;
+    if (!this.isInTodoState(payload.data)) return false;
+    return true;
+  }
+
+  private reconstructIssue(data: RawWebhookData): LinearIssue {
+    return LinearIssue.reconstruct(
       data.id,
       data.title,
       data.description ?? null,
       data.url,
       data.labels.map((l) => l.name),
     );
+  }
 
+  implement(payload: RawWebhookPayload): void {
+    if (!this.shouldProcess(payload)) return;
+
+    const issue = this.reconstructIssue(payload.data);
     logger.info(
       `[implement-issue] Dispatching agent for ${issue.id().value()}: ${issue.title().value()}`,
     );
     processIssue(issue).catch((err: Error) => {
-      logger.error(`[implement-issue] Failed for ${issue.id().value()}: ${err.message}`);
+      logger.error(`[implement-issue] Failed for ${issue.id().value()}: ${err.message}`, {
+        error: err,
+        properties: { issueId: issue.id().value() },
+      });
     });
   }
 }

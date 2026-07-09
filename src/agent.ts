@@ -7,7 +7,7 @@ import { GithubTransfer } from "@/transfer/github.transfer";
 import { SuspendIssueCommand } from "@/linear-webhook/command/suspend-issue.command";
 import { LinearIssue } from "@/domain/issue/linear-issue";
 import { REPOS, MAX_TURNS, LOG_TRUNCATE_LENGTH } from "@/repos.config";
-import { promptLoader } from "@/util/prompt-loader";
+import { langfuse } from "@/util/langfuse";
 import { logger } from "@/util/logger";
 import {
   CLAUDE_MESSAGE_TYPES,
@@ -27,12 +27,105 @@ interface ClaudeResultMessage {
   usage?: { total_tokens?: number };
 }
 
+const LOG_TRUNCATE_START = 0;
+
+const CLAUDE_ALLOWED_TOOLS = [
+  "Read",
+  "Write",
+  "Skill",
+  "Bash(git add *)",
+  "Bash(git commit *)",
+  "Bash(git push *)",
+  "Bash(gh pr create *)",
+  "Bash(npm test)",
+  "Bash(npm run lint)",
+];
+
 function createIssueRepository(): IssueRepository {
   return new IssueRepository(new LinearTransfer(), new GithubTransfer());
 }
 
 function createSuspendIssueCommand(issueRepository: IssueRepository): SuspendIssueCommand {
   return new SuspendIssueCommand(issueRepository);
+}
+
+// ----------------------------------------
+// Helper: Build PR title and body from issue
+// ----------------------------------------
+function buildPrContent(issue: LinearIssue): { title: string; body: string } {
+  const title = `feat: ${issue.title().value()} [${issue.id().value()}]`;
+  const body = [
+    `## Linear Issue`,
+    issue.url(),
+    ``,
+    `## Description`,
+    issue.description() ?? "No description",
+    ``,
+    `## Changes`,
+    `Auto-implemented by Claude Code`,
+  ].join("\n");
+  return { title, body };
+}
+
+// ----------------------------------------
+// Helper: Build prompt for Claude agent
+// ----------------------------------------
+async function buildAgentPrompt(
+  issue: LinearIssue,
+  workBranch: string,
+  repoFullName: string,
+  prContent: { title: string; body: string },
+): Promise<string> {
+  return langfuse.fetchTaskPrompt({
+    title: issue.title().value(),
+    description: issue.description() ?? "詳細なし",
+    workBranch,
+    repoFullName,
+    prTitle: JSON.stringify(prContent.title),
+    prBody: JSON.stringify(prContent.body),
+  });
+}
+
+// ----------------------------------------
+// Helper: Log tool block
+// ----------------------------------------
+function logToolBlock(
+  issueId: string,
+  block: { type: string; name?: string; input?: unknown },
+): void {
+  if (block.type === CLAUDE_CONTENT_TYPES.toolUse) {
+    logger.info(
+      `    🔧 [${issueId}] ${block.name}: ${JSON.stringify(block.input).slice(LOG_TRUNCATE_START, LOG_TRUNCATE_LENGTH)}`,
+    );
+  }
+}
+
+// ----------------------------------------
+// Helper: Log Claude tool usage
+// ----------------------------------------
+function logClaudeToolUsage(issueId: string, msg: unknown): void {
+  const msgObj = msg as {
+    type: string;
+    message?: { content: Array<{ type: string; name?: string; input?: unknown }> };
+  };
+  if (msgObj.type !== CLAUDE_MESSAGE_TYPES.assistant) return;
+  if (!msgObj.message?.content) return;
+  msgObj.message.content.forEach((block) => logToolBlock(issueId, block));
+}
+
+// ----------------------------------------
+// Helper: Validate Claude result
+// ----------------------------------------
+async function validateClaudeResult(
+  result: ClaudeResultMessage | null,
+  issue: LinearIssue,
+  suspendIssue: SuspendIssueCommand,
+): Promise<void> {
+  if (!result) throw new ClaudeTerminatedError(issue.id().value());
+  if (result.subtype === CLAUDE_RESULT_SUBTYPES.errorMaxTurns) {
+    await suspendIssue.suspend(issue);
+    throw new MaxTurnsReachedError(issue.id().value());
+  }
 }
 
 // ----------------------------------------
@@ -48,26 +141,8 @@ async function runClaude(
   repoFullName: string,
   suspendIssue: SuspendIssueCommand,
 ): Promise<ClaudeResultMessage> {
-  const prTitle = `feat: ${issue.title().value()} [${issue.id().value()}]`;
-  const prBody = [
-    `## Linear Issue`,
-    issue.url(),
-    ``,
-    `## Description`,
-    issue.description() ?? "No description",
-    ``,
-    `## Changes`,
-    `Auto-implemented by Claude Code`,
-  ].join("\n");
-
-  const prompt = promptLoader.load("task", {
-    title: issue.title().value(),
-    description: issue.description() ?? "詳細なし",
-    workBranch,
-    repoFullName,
-    prTitle: JSON.stringify(prTitle),
-    prBody: JSON.stringify(prBody),
-  });
+  const prContent = buildPrContent(issue);
+  const prompt = await buildAgentPrompt(issue, workBranch, repoFullName, prContent);
 
   let result: ClaudeResultMessage | null = null;
 
@@ -75,48 +150,98 @@ async function runClaude(
     prompt,
     options: {
       cwd: wtPath,
-
-      // wtPath/.claude/ 以下の CLAUDE.md / rules / skills / hooks を自動ロード
       settingSources: ["project"],
-
-      allowedTools: [
-        "Read",
-        "Write",
-        "Skill",
-        "Bash(git add *)",
-        "Bash(git commit *)",
-        "Bash(git push *)",
-        "Bash(gh pr create *)",
-        "Bash(npm test)",
-        "Bash(npm run lint)",
-      ],
-
+      allowedTools: CLAUDE_ALLOWED_TOOLS,
       maxTurns: MAX_TURNS,
     },
   })) {
-    // ツール使用状況をリアルタイムでログ出力
-    if (msg.type === CLAUDE_MESSAGE_TYPES.assistant) {
-      for (const block of msg.message.content) {
-        if (block.type === CLAUDE_CONTENT_TYPES.toolUse) {
-          logger.info(
-            `    🔧 [${issue.id().value()}] ${block.name}: ${JSON.stringify(block.input).slice(0, LOG_TRUNCATE_LENGTH)}`,
-          );
-        }
-      }
-    }
-
+    logClaudeToolUsage(issue.id().value(), msg);
     if (msg.type === CLAUDE_MESSAGE_TYPES.result) {
       result = msg as ClaudeResultMessage;
     }
   }
 
-  if (!result) throw new ClaudeTerminatedError(issue.id().value());
-  if (result.subtype === CLAUDE_RESULT_SUBTYPES.errorMaxTurns) {
-    await suspendIssue.suspend(issue);
-    throw new MaxTurnsReachedError(issue.id().value());
-  }
+  await validateClaudeResult(result, issue, suspendIssue);
+  return result!;
+}
 
-  return result;
+// ----------------------------------------
+// Helper: Resolve and validate repository
+// ----------------------------------------
+function resolveAndValidateRepo(issue: LinearIssue): { repoName: string; repoFull: string } {
+  const issueId = issue.id().value();
+  const repoNames = REPOS.map((r) => r.name);
+  const repoName = resolveRepo(issue, repoNames);
+  const repo = REPOS.find((r) => r.name === repoName);
+  if (!repo) throw new UnknownRepoError(issueId, repoName ?? "");
+  return { repoName, repoFull: `${repo.org}/${repo.name}` };
+}
+
+// ----------------------------------------
+// Helper: Initialize Linear issue state
+// ----------------------------------------
+async function initializeLinearIssue(
+  issueRepository: IssueRepository,
+  issueId: string,
+): Promise<void> {
+  const isResume = await issueRepository.hasStartingComment(issueId).catch(() => false);
+  const startComment = isResume ? AGENT_MESSAGES.agentResuming : AGENT_MESSAGES.agentStarting;
+  await issueRepository.addComment(issueId, startComment).catch(() => {});
+  await issueRepository.startImplementation(issueId);
+}
+
+// ----------------------------------------
+// Helper: Handle Claude execution and completion
+// ----------------------------------------
+async function handleClaudeExecution(
+  issue: LinearIssue,
+  wtPath: string,
+  workBranch: string,
+  repoFull: string,
+  issueRepository: IssueRepository,
+  suspendIssue: SuspendIssueCommand,
+): Promise<void> {
+  const issueId = issue.id().value();
+  const result = await runClaude(issue, wtPath, workBranch, repoFull, suspendIssue);
+  const usage = result.usage;
+  logger.info(`  🤖 [${issueId}] Claude完了 (${usage?.total_tokens ?? "-"} tokens)`);
+
+  await issueRepository.markReadyForReview(issueId);
+  const prUrl =
+    (await issueRepository.fetchPrUrl(repoFull, workBranch)) ?? AGENT_MESSAGES.prNotFound;
+  await issueRepository.addComment(issueId, AGENT_MESSAGES.agentComplete(prUrl)).catch(() => {});
+  logger.info(`  ✅ [${issueId}] 完了`);
+}
+
+// ----------------------------------------
+// Helper: Handle process errors
+// ----------------------------------------
+async function handleProcessIssueError(
+  err: Error,
+  issueId: string,
+  issue: LinearIssue,
+  issueRepository: IssueRepository,
+  suspendIssue: SuspendIssueCommand,
+): Promise<void> {
+  const ctx = { error: err, properties: { issueId } };
+  if (err instanceof MaxTurnsReachedError) {
+    logger.warn(`  ⚠️  [${issueId}] Max turns reached: ${err.message}`, ctx);
+  } else if (err instanceof ClaudeTerminatedError) {
+    logger.warn(`  ⚠️  [${issueId}] Claude terminated: ${err.message}`, ctx);
+    await suspendIssue.suspend(issue).catch(() => {});
+    await issueRepository.addComment(issueId, AGENT_MESSAGES.agentTerminated).catch(() => {});
+  } else if (err instanceof UnknownRepoError) {
+    logger.warn(`  ⚠️  [${issueId}] Business error: ${err.message}`, ctx);
+    await issueRepository
+      .addComment(issueId, AGENT_MESSAGES.agentStopped(err.message))
+      .catch(() => {});
+  } else {
+    logger.error(`  ❌ [${issueId}] System error: ${err.message}`, ctx);
+    await issueRepository
+      .addComment(issueId, AGENT_MESSAGES.agentFailed(err.message))
+      .catch(() => {});
+    await issueRepository.resetToPending(issueId).catch(() => {});
+  }
 }
 
 // ----------------------------------------
@@ -129,63 +254,19 @@ export async function processIssue(issue: LinearIssue): Promise<void> {
   let resolvedRepoName: string | undefined;
 
   try {
-    const repoNames = REPOS.map((r) => r.name);
-    const repoName = resolveRepo(issue, repoNames);
-    const repo = REPOS.find((r) => r.name === repoName);
-    if (!repo) throw new UnknownRepoError(issueId, repoName ?? "");
+    const { repoName, repoFull } = resolveAndValidateRepo(issue);
     resolvedRepoName = repoName;
-    const repoFull = `${repo.org}/${repo.name}`;
 
     logger.info(`\n▶ [${issueId}] ${issue.title().value()}`);
     logger.info(`  📦 ${repoFull}`);
 
-    // 1. Linear にコメントを追加し、"In Progress" に（重複実行防止）
-    const isResume = await issueRepository.hasStartingComment(issueId).catch(() => false);
-    const startComment = isResume ? AGENT_MESSAGES.agentResuming : AGENT_MESSAGES.agentStarting;
-    await issueRepository.addComment(issueId, startComment).catch(() => {});
-    await issueRepository.startImplementation(issueId);
-
-    // 2. worktree を作成（他タスクと独立した作業ディレクトリ）
+    await initializeLinearIssue(issueRepository, issueId);
     const { wtPath, workBranch } = prepareWorktree(repoName, issueId);
-
-    // 3. Claude Code で実装 → push → PR 作成
-    const result = await runClaude(issue, wtPath, workBranch, repoFull, suspendIssue);
-    const usage = result.usage;
-    logger.info(`  🤖 [${issueId}] Claude完了 (${usage?.total_tokens ?? "-"} tokens)`);
-
-    // 4. Linear を "In Review" に
-    await issueRepository.markReadyForReview(issueId);
-    const prUrl =
-      (await issueRepository.fetchPrUrl(repoFull, workBranch)) ?? AGENT_MESSAGES.prNotFound;
-    await issueRepository.addComment(issueId, AGENT_MESSAGES.agentComplete(prUrl)).catch(() => {});
-    logger.info(`  ✅ [${issueId}] 完了`);
+    await handleClaudeExecution(issue, wtPath, workBranch, repoFull, issueRepository, suspendIssue);
   } catch (err) {
-    if (err instanceof MaxTurnsReachedError) {
-      // Already suspended by SuspendIssueCommand — do NOT reset to pending
-      logger.warn(`  ⚠️  [${issueId}] Max turns reached: ${err.message}`);
-    } else if (err instanceof ClaudeTerminatedError) {
-      // Claude exited mid-run (cost limit, process kill, SDK abort)
-      // Suspend so it doesn't re-trigger and hit the same limit again
-      logger.warn(`  ⚠️  [${issueId}] Claude terminated: ${err.message}`);
-      await suspendIssue.suspend(issue).catch(() => {});
-      await issueRepository.addComment(issueId, AGENT_MESSAGES.agentTerminated).catch(() => {});
-    } else if (err instanceof UnknownRepoError) {
-      // Misconfiguration — resetting to pending causes infinite loop
-      logger.warn(`  ⚠️  [${issueId}] Business error: ${err.message}`);
-      await issueRepository
-        .addComment(issueId, AGENT_MESSAGES.agentStopped(err.message))
-        .catch(() => {});
-    } else {
-      // System error — comment to notify, then reset to pending so human can retry
-      logger.error(`  ❌ [${issueId}] System error: ${(err as Error).message}`);
-      await issueRepository
-        .addComment(issueId, AGENT_MESSAGES.agentFailed((err as Error).message))
-        .catch(() => {});
-      await issueRepository.resetToPending(issueId).catch(() => {});
-    }
+    await handleProcessIssueError(err as Error, issueId, issue, issueRepository, suspendIssue);
     throw err;
   } finally {
-    // 5. 成功・失敗どちらでも worktree を掃除（worktree が作成済みの場合のみ）
     if (resolvedRepoName) cleanupWorktree(resolvedRepoName, issueId);
   }
 }

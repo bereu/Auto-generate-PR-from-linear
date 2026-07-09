@@ -32,12 +32,11 @@
     ],
     "Stop": [
       {
-        "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "cd /Users/soheieto/sandbox/auto-generate-code-from-linear && /Users/soheieto/.claude/local/claude --permission-mode acceptEdits -p 'use what-i-learned skills. And report your learning' --output-format text 2>/dev/null || true",
-            "async": true
+            "command": "npm run lint && npm run build",
+            "statusMessage": "Running quality gates..."
           }
         ]
       }
