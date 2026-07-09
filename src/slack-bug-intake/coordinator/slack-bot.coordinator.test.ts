@@ -12,7 +12,10 @@ import type { SlackTransfer } from "@/transfer/slack.transfer";
 import type { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
 import type { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
 import { makeTestMessage } from "@/test/message-helper";
-import { WORKFLOW_ERROR_MESSAGE } from "@/slack-bug-intake/slack-bug-intake.constants";
+import {
+  WORKFLOW_ERROR_MESSAGE,
+  ERROR_RESPONSE_MESSAGES,
+} from "@/slack-bug-intake/slack-bug-intake.constants";
 import { generateObject } from "ai";
 
 const FIRST_CALL_ARG = 0;
@@ -111,6 +114,33 @@ describe("SlackBotCoordinator.handleIncoming", () => {
   });
 
   /**
+   * Pattern-specific replies: a complete report whose Linear issue creation fails
+   * must tell the reporter to file directly in Linear, not show the generic message.
+   */
+  it("posts the Linear-failure reply when issue creation fails", async () => {
+    const messages = [makeTestMessage("App crashes on startup with repro steps", false)];
+    const thread = makeThread(messages);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(mockEvaluate!.execute as any).mockResolvedValueOnce({
+      isComplete: true,
+      clarifyingQuestion: null,
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(generateObject as any).mockResolvedValueOnce({ object: { difficulty: "medium" } });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    vi.mocked(mockCreateIssue!.execute as any).mockRejectedValueOnce(
+      new Error("Linear issue creation failed"),
+    );
+
+    await (coordinator as unknown as { handleIncoming(t: Thread): Promise<void> }).handleIncoming(
+      thread,
+    );
+
+    expect(thread.post).toHaveBeenCalledWith(ERROR_RESPONSE_MESSAGES.linearCreationFailed);
+  });
+
+  /**
    * Branch 1: Complete report → assess complexity → create Linear issue, post URL, unsubscribe
    * Ensures only the completion branch (assess + create) runs, not the fallback.
    * The assessComplexityStep now performs assessment inline via generateObject.
@@ -194,8 +224,8 @@ describe("SlackBotCoordinator.handleIncoming", () => {
 
   /**
    * Branch 3: Exhausted rounds or no question → escalateStep unsubscribes and
-   * throws (Mastra resolves the run as `failed`); the coordinator reports it and
-   * notifies the reporter with WORKFLOW_ERROR_MESSAGE.
+   * throws an InsufficientBugDetailError (Mastra resolves the run as `failed`);
+   * the coordinator classifies it and posts the insufficient-detail reply.
    */
   it("escalates and notifies the reporter when rounds are exhausted", async () => {
     const messages = [
@@ -224,7 +254,7 @@ describe("SlackBotCoordinator.handleIncoming", () => {
       thread,
     );
 
-    // escalateStep unsubscribed then threw → coordinator notified the reporter
+    // escalateStep unsubscribed then threw → coordinator posted the generic reply
     expect(thread.post).toHaveBeenCalledWith(WORKFLOW_ERROR_MESSAGE);
     // Verify unsubscribe was called (escalateStep stops the clarify loop)
     expect(thread.unsubscribe).toHaveBeenCalledOnce();
@@ -234,7 +264,7 @@ describe("SlackBotCoordinator.handleIncoming", () => {
 
   /**
    * Branch 3 variant: No clarifying question → escalateStep unsubscribes and
-   * throws; the coordinator notifies the reporter with WORKFLOW_ERROR_MESSAGE.
+   * throws; the coordinator posts the insufficient-detail reply.
    */
   it("escalates and notifies the reporter when no clarifying question can be formed", async () => {
     const messages = [
@@ -255,7 +285,7 @@ describe("SlackBotCoordinator.handleIncoming", () => {
       thread,
     );
 
-    // escalateStep unsubscribed then threw → coordinator notified the reporter
+    // escalateStep unsubscribed then threw → coordinator posted the generic reply
     expect(thread.post).toHaveBeenCalledWith(WORKFLOW_ERROR_MESSAGE);
     // Verify unsubscribe was called (escalateStep stops the clarify loop)
     expect(thread.unsubscribe).toHaveBeenCalledOnce();

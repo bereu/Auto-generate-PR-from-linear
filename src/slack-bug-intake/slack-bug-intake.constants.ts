@@ -17,9 +17,25 @@ export const DIFFICULTY_VALUES = Object.values(DIFFICULTY_LABELS) as [
 
 export const FALLBACK_DIFFICULTY: DifficultyLabel = DIFFICULTY_LABELS.medium;
 
-export const WORKFLOW_ERROR_MESSAGE =
-  "Something went wrong while processing your bug report. " +
-  "Our team has been notified. Please try again shortly or file the issue directly in Linear.";
+/**
+ * User-facing reply for each distinct triage failure pattern. Each entry maps a
+ * classified error (see `triage-error.ts`) to a message tailored to what the
+ * reporter can actually do about it, instead of one catch-all string.
+ */
+export const ERROR_RESPONSE_MESSAGES = {
+  /** The report was analysed, but creating the Linear issue failed. */
+  linearCreationFailed:
+    "I analysed your bug report, but creating the Linear issue failed. " +
+    "Our team has been notified — please file the issue directly in Linear for now.",
+  /** Anything not matched by a more specific pattern. */
+  unknown: "Something went wrong. Please try again.",
+} as const;
+
+/**
+ * Backwards-compatible alias for the generic fallback message.
+ * @deprecated Prefer `classifyTriageError` + `ERROR_RESPONSE_MESSAGES`.
+ */
+export const WORKFLOW_ERROR_MESSAGE = ERROR_RESPONSE_MESSAGES.unknown;
 
 export const TRIAGE_SYSTEM_PROMPT = `
 You are a bug triage assistant. Evaluate whether the conversation contains:

@@ -10,6 +10,7 @@ import {
   FALLBACK_DIFFICULTY,
 } from "@/slack-bug-intake/slack-bug-intake.constants";
 import { WORKFLOW_NAMES, WORKFLOW_STEP_IDS } from "@/constants/mastra.constants";
+import { InsufficientBugDetailError } from "@/constants/errors/business.error";
 import { logger } from "@/util/logger";
 import {
   complexityAgent,
@@ -184,15 +185,15 @@ const escalateStep = createStep({
   description: "Escalate unrecoverable triage as a workflow error",
   inputSchema: EvaluationResultSchema,
   outputSchema: z.object({}),
-  async execute({ inputData: _inputData, requestContext }) {
+  async execute({ inputData, requestContext }) {
     const thread = requestContext.get<"thread", Thread>("thread");
     // Local breadcrumb only (info → not forwarded to Rollbar). The single error
     // report happens once at the coordinator when the run resolves failed (BE-003).
     logger.info(`[slack-triage] rounds exhausted or no question — escalating as workflow error`);
     await thread.unsubscribe();
-    throw new Error(
-      "Bug triage could not gather sufficient details after maximum clarification rounds",
-    );
+    // Typed business error so the coordinator can post the insufficient-detail
+    // reply (a known, expected outcome) rather than the generic failure message.
+    throw new InsufficientBugDetailError(inputData.botTurns);
   },
 });
 

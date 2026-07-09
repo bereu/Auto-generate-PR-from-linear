@@ -6,7 +6,7 @@ import { SlackTransfer } from "@/transfer/slack.transfer";
 import { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
 import { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
 import { WORKFLOW_NAMES } from "@/constants/mastra.constants";
-import { WORKFLOW_ERROR_MESSAGE } from "@/slack-bug-intake/slack-bug-intake.constants";
+import { classifyTriageError } from "@/slack-bug-intake/triage-error";
 import { mastra } from "@/util/mastra";
 import { webhookAdapter } from "@/util/webhook-adapter";
 import { logger } from "@/util/logger";
@@ -66,14 +66,22 @@ export class SlackBotCoordinator implements OnModuleInit {
   }
 
   /**
-   * Report a triage failure through the logger util (BE-003, system error →
-   * Rollbar `error`) and best-effort notify the reporter in-thread so they are
-   * not left hanging. A post failure here must not mask the original error.
+   * Report a triage failure through the logger util and best-effort notify the
+   * reporter in-thread so they are not left hanging. The error is classified into
+   * a pattern (see `classifyTriageError`) which selects both the user-facing reply
+   * and the Rollbar severity (BE-003: business logic error → `warn`, system error
+   * → `error`). A post failure here must not mask the original error.
    */
   private async reportFailure(thread: Thread, error: Error): Promise<void> {
-    logger.error(`[slack-triage] handleIncoming failed: ${error.message}`, { error });
+    const { message, isBusinessError } = classifyTriageError(error);
+    const logMessage = `[slack-triage] handleIncoming failed: ${error.message}`;
+    if (isBusinessError) {
+      logger.warn(logMessage, { error });
+    } else {
+      logger.error(logMessage, { error });
+    }
     try {
-      await thread.post(WORKFLOW_ERROR_MESSAGE);
+      await thread.post(message);
     } catch (postErr) {
       logger.error(
         `[slack-triage] failed to post error notification: ${(postErr as Error).message}`,
