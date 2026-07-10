@@ -3,7 +3,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 import { AGENT_NAMES, AGENT_MODELS } from "@/constants/mastra.constants";
 import { langfuse } from "@/util/langfuse";
-import { domainDocsWorkspace } from "@/slack-bug-intake/agent/domain-docs.workspace";
+import { domainDocsWorkspace } from "@/slack-triage/agent/domain-docs.workspace";
 
 /**
  * Structured output contract for the bug-triage agent.

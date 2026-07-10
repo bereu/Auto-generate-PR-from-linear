@@ -40,6 +40,7 @@ Both types of errors need to be handled appropriately and monitored to ensure sy
 - **DO** report handled errors through `logger.warn` / `logger.error` / `logger.critical`, which forward to Rollbar — never by importing or constructing Rollbar directly.
 - **DO** populate a custom error's `.properties` (e.g. `{ issueId }`) in its constructor so debugging context reaches Rollbar automatically when the error is reported.
 - **DO** pass `{ error }` (and any extra `properties`) to the logger so business-vs-system severity is inferred and context is forwarded.
+- **DO** recognise errors that cross a Mastra workflow boundary by a stable marker message, not `instanceof` alone. When a custom error is thrown inside a workflow step, Mastra does not rethrow it — the run resolves with status `"failed"` and the error is serialized into `result.error`, which strips the class prototype, so `error instanceof MyCustomError` FAILS at the layer inspecting `result.error` (e.g. the coordinator). Export a marker constant from the error's module (e.g. `INSUFFICIENT_BUG_DETAIL_MESSAGE` in `src/constants/errors/business.error.ts`) and match on both `instanceof` AND `error.message.startsWith(MARKER)` (see `classifyTriageError` in `src/slack-bug-intake/triage-error.ts`).
 
 ### Don't
 
@@ -48,6 +49,7 @@ Both types of errors need to be handled appropriately and monitored to ensure sy
 - **DON'T** let business logic errors trigger unhandled exception crashes.
 - **DON'T** create a separate Rollbar singleton or module — reporting is a responsibility of the `Logger` util singleton (see [BE-001](./BE-001-layer-architecture.md) / [GEN-002](./GEN-002-project-folder-structure.md)).
 - **DON'T** report the same error more than once. Report each handled error exactly once, at the layer that owns handling — do not log-and-report at a lower layer and then re-report after a rethrow in the command/controller layer.
+- **DON'T** rely on `instanceof` to classify an error retrieved from a Mastra workflow's `result.error` — the prototype does not survive serialization. Combine it with a marker-message check.
 
 ## Implementation Pattern
 

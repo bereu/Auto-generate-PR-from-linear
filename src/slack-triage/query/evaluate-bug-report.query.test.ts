@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
+import { EvaluateBugReportQuery } from "@/slack-triage/query/evaluate-bug-report.query";
 import { makeTestMessage } from "@/test/message-helper";
 import type { LocalFilesystem } from "@mastra/core/workspace";
 import path from "path";
-import { DOMAIN_DOCS_DIR } from "@/slack-bug-intake/slack-bug-intake.constants";
+import { DOMAIN_DOCS_DIR } from "@/slack-triage/slack-triage.constants";
 
 const FIRST_CALL = 0;
 const FIRST_ARG = 0;
@@ -11,7 +11,7 @@ const SECOND_ARG = 1;
 
 const { generateMock } = vi.hoisted(() => ({ generateMock: vi.fn() }));
 
-vi.mock("@/slack-bug-intake/agent/bug-triage.agent", async () => {
+vi.mock("@/slack-triage/agent/bug-triage.agent", async () => {
   const { z } = await import("zod");
   return {
     bugTriageAgent: { generate: generateMock },
@@ -113,14 +113,14 @@ describe("EvaluateBugReportQuery - workspace integration", () => {
   it("should have domain docs workspace configured for read-only file access", async () => {
     // Import and verify the workspace is properly configured.
     // This test verifies that the agent has access to domain docs via the workspace.
-    const { domainDocsWorkspace } = await import("@/slack-bug-intake/agent/domain-docs.workspace");
+    const { domainDocsWorkspace } = await import("@/slack-triage/agent/domain-docs.workspace");
 
     expect(domainDocsWorkspace).toBeDefined();
     expect(domainDocsWorkspace.filesystem).toBeDefined();
   });
 
   it("should have workspace with basePath pointing to DOMAIN_DOCS_DIR", async () => {
-    const { domainDocsWorkspace } = await import("@/slack-bug-intake/agent/domain-docs.workspace");
+    const { domainDocsWorkspace } = await import("@/slack-triage/agent/domain-docs.workspace");
 
     const expectedBasePath = path.resolve(DOMAIN_DOCS_DIR);
     const filesystem = domainDocsWorkspace.filesystem as LocalFilesystem;
@@ -129,7 +129,7 @@ describe("EvaluateBugReportQuery - workspace integration", () => {
   });
 
   it("should have read-only enabled on workspace filesystem", async () => {
-    const { domainDocsWorkspace } = await import("@/slack-bug-intake/agent/domain-docs.workspace");
+    const { domainDocsWorkspace } = await import("@/slack-triage/agent/domain-docs.workspace");
 
     const filesystem = domainDocsWorkspace.filesystem as LocalFilesystem;
     expect(filesystem.readOnly).toBe(true);

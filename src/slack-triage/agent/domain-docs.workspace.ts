@@ -1,5 +1,5 @@
 import { Workspace, LocalFilesystem } from "@mastra/core/workspace";
-import { DOMAIN_DOCS_DIR } from "@/slack-bug-intake/slack-bug-intake.constants";
+import { DOMAIN_DOCS_DIR } from "@/slack-triage/slack-triage.constants";
 import path from "path";
 
 /**

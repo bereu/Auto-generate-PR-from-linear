@@ -2,8 +2,8 @@ import { Mastra } from "@mastra/core/mastra";
 import { Observability } from "@mastra/observability";
 import { SpanType } from "@mastra/core/observability";
 import { LangfuseExporter } from "@mastra/langfuse";
-import { bugTriageAgent } from "@/slack-bug-intake/agent/bug-triage.agent";
-import { bugTriageWorkflow } from "@/slack-bug-intake/workflow/bug-triage.workflow";
+import { bugTriageAgent } from "@/slack-triage/agent/bug-triage.agent";
+import { triageWorkflow } from "@/slack-triage/workflow/triage.workflow";
 import {
   AGENT_NAMES,
   WORKFLOW_NAMES,
@@ -35,7 +35,7 @@ export class MastraProvider {
         [AGENT_NAMES.bugTriage]: bugTriageAgent,
       },
       workflows: {
-        [WORKFLOW_NAMES.bugTriage]: bugTriageWorkflow,
+        [WORKFLOW_NAMES.triage]: triageWorkflow,
       },
       observability: this.buildObservability(),
     });

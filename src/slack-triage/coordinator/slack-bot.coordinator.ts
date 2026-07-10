@@ -3,10 +3,13 @@ import type { Request as ExpressRequest, Response as ExpressResponse } from "exp
 import type { Thread } from "chat";
 import { RequestContext } from "@mastra/core/request-context";
 import { SlackTransfer } from "@/transfer/slack.transfer";
-import { EvaluateBugReportQuery } from "@/slack-bug-intake/query/evaluate-bug-report.query";
-import { CreateLinearIssueCommand } from "@/slack-bug-intake/command/create-linear-issue.command";
+import { ClassifyMessageQuery } from "@/slack-triage/query/classify-message.query";
+import { AnswerQuestionQuery } from "@/slack-triage/query/answer-question.query";
+import { EvaluateBugReportQuery } from "@/slack-triage/query/evaluate-bug-report.query";
+import { EvaluateFeatureRequestQuery } from "@/slack-triage/query/evaluate-feature-request.query";
+import { CreateLinearIssueCommand } from "@/slack-triage/command/create-linear-issue.command";
 import { WORKFLOW_NAMES } from "@/constants/mastra.constants";
-import { WORKFLOW_ERROR_MESSAGE } from "@/slack-bug-intake/slack-bug-intake.constants";
+import { classifyTriageError } from "@/slack-triage/triage-error";
 import { mastra } from "@/util/mastra";
 import { webhookAdapter } from "@/util/webhook-adapter";
 import { logger } from "@/util/logger";
@@ -15,7 +18,11 @@ import { logger } from "@/util/logger";
 export class SlackBotCoordinator implements OnModuleInit {
   constructor(
     @Inject(SlackTransfer) private readonly slackTransfer: SlackTransfer,
+    @Inject(ClassifyMessageQuery) private readonly classifyMessage: ClassifyMessageQuery,
+    @Inject(AnswerQuestionQuery) private readonly answerQuestion: AnswerQuestionQuery,
     @Inject(EvaluateBugReportQuery) private readonly evaluateBugReport: EvaluateBugReportQuery,
+    @Inject(EvaluateFeatureRequestQuery)
+    private readonly evaluateFeatureRequest: EvaluateFeatureRequestQuery,
     @Inject(CreateLinearIssueCommand) private readonly createLinearIssue: CreateLinearIssueCommand,
   ) {}
 
@@ -33,21 +40,9 @@ export class SlackBotCoordinator implements OnModuleInit {
   private async handleIncoming(thread: Thread): Promise<void> {
     try {
       await thread.refresh();
+      const requestContext = this.buildRequestContext(thread);
 
-      // Build Mastra request context with dependencies needed by workflow steps.
-      // RequestContext is a Map-like container; pass tuples in constructor.
-      const requestContext = new RequestContext<{
-        thread: Thread;
-        evaluateBugReport: EvaluateBugReportQuery;
-        createLinearIssue: CreateLinearIssueCommand;
-      }>([
-        ["thread", thread],
-        ["evaluateBugReport", this.evaluateBugReport],
-        ["createLinearIssue", this.createLinearIssue],
-      ]);
-
-      // Start the bug triage workflow with the injected context.
-      const workflow = mastra.getWorkflow(WORKFLOW_NAMES.bugTriage);
+      const workflow = mastra.getWorkflow(WORKFLOW_NAMES.triage);
       const run = await workflow.createRun();
       const result = await run.start({
         inputData: {},
@@ -65,15 +60,38 @@ export class SlackBotCoordinator implements OnModuleInit {
     }
   }
 
+  private buildRequestContext(
+    thread: Thread,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): RequestContext<any> {
+    return new RequestContext([
+      ["thread", thread],
+      ["classifyMessage", this.classifyMessage],
+      ["answerQuestion", this.answerQuestion],
+      ["evaluateBugReport", this.evaluateBugReport],
+      ["evaluateFeatureRequest", this.evaluateFeatureRequest],
+      ["createLinearIssue", this.createLinearIssue],
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ] as any);
+  }
+
   /**
-   * Report a triage failure through the logger util (BE-003, system error →
-   * Rollbar `error`) and best-effort notify the reporter in-thread so they are
-   * not left hanging. A post failure here must not mask the original error.
+   * Report a triage failure through the logger util and best-effort notify the
+   * reporter in-thread so they are not left hanging. The error is classified into
+   * a pattern (see `classifyTriageError`) which selects both the user-facing reply
+   * and the Rollbar severity (BE-003: business logic error → `warn`, system error
+   * → `error`). A post failure here must not mask the original error.
    */
   private async reportFailure(thread: Thread, error: Error): Promise<void> {
-    logger.error(`[slack-triage] handleIncoming failed: ${error.message}`, { error });
+    const { message, isBusinessError } = classifyTriageError(error);
+    const logMessage = `[slack-triage] handleIncoming failed: ${error.message}`;
+    if (isBusinessError) {
+      logger.warn(logMessage, { error });
+    } else {
+      logger.error(logMessage, { error });
+    }
     try {
-      await thread.post(WORKFLOW_ERROR_MESSAGE);
+      await thread.post(message);
     } catch (postErr) {
       logger.error(
         `[slack-triage] failed to post error notification: ${(postErr as Error).message}`,

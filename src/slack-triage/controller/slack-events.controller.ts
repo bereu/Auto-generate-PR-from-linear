@@ -1,6 +1,6 @@
 import { Controller, Post, Req, Res, Inject } from "@nestjs/common";
 import type { Request, Response } from "express";
-import { SlackBotCoordinator } from "@/slack-bug-intake/coordinator/slack-bot.coordinator";
+import { SlackBotCoordinator } from "@/slack-triage/coordinator/slack-bot.coordinator";
 
 @Controller("slack")
 export class SlackEventsController {

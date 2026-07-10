@@ -5,7 +5,11 @@ import {
   TRIAGE_SYSTEM_PROMPT,
   FORMAT_SYSTEM_PROMPT,
   COMPLEXITY_SYSTEM_PROMPT,
-} from "@/slack-bug-intake/slack-bug-intake.constants";
+  INTENT_CLASSIFY_SYSTEM_PROMPT,
+  QUESTION_ANSWER_SYSTEM_PROMPT,
+  FEATURE_EVALUATE_SYSTEM_PROMPT,
+  FEATURE_FORMAT_SYSTEM_PROMPT,
+} from "@/slack-triage/slack-triage.constants";
 import { promptLoader } from "@/util/prompt-loader";
 
 const TASK_PROMPT_NAME = "task";
@@ -114,6 +118,54 @@ export class Langfuse {
       promptLoader.loadRaw(TASK_PROMPT_NAME),
       variables,
       () => promptLoader.load(TASK_PROMPT_NAME, variables),
+    );
+  }
+
+  /**
+   * Intent classification system prompt. No variables. Falls back to
+   * `INTENT_CLASSIFY_SYSTEM_PROMPT`.
+   */
+  async fetchIntentClassifyPrompt(variables: Record<string, string> = {}): Promise<string> {
+    return this.fetchTextPrompt(
+      LANGFUSE_PROMPT_NAMES.intentClassify,
+      INTENT_CLASSIFY_SYSTEM_PROMPT,
+      variables,
+    );
+  }
+
+  /**
+   * Question answer system prompt. No variables. Falls back to
+   * `QUESTION_ANSWER_SYSTEM_PROMPT`.
+   */
+  async fetchQuestionAnswerPrompt(variables: Record<string, string> = {}): Promise<string> {
+    return this.fetchTextPrompt(
+      LANGFUSE_PROMPT_NAMES.questionAnswer,
+      QUESTION_ANSWER_SYSTEM_PROMPT,
+      variables,
+    );
+  }
+
+  /**
+   * Feature evaluation system prompt. No variables. Falls back to
+   * `FEATURE_EVALUATE_SYSTEM_PROMPT`.
+   */
+  async fetchFeatureEvaluatePrompt(variables: Record<string, string> = {}): Promise<string> {
+    return this.fetchTextPrompt(
+      LANGFUSE_PROMPT_NAMES.featureEvaluate,
+      FEATURE_EVALUATE_SYSTEM_PROMPT,
+      variables,
+    );
+  }
+
+  /**
+   * Feature format system prompt. No variables. Falls back to
+   * `FEATURE_FORMAT_SYSTEM_PROMPT`.
+   */
+  async fetchFeatureFormatPrompt(variables: Record<string, string> = {}): Promise<string> {
+    return this.fetchTextPrompt(
+      LANGFUSE_PROMPT_NAMES.featureFormat,
+      FEATURE_FORMAT_SYSTEM_PROMPT,
+      variables,
     );
   }
 
