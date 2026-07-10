@@ -3,6 +3,8 @@ import { LinearIssue } from "@/domain/issue/linear-issue";
 
 export { LinearIssue };
 
+const DEFAULT_REPO_INDEX = 0;
+
 // ----------------------------------------
 // issue のテキストからリポジトリ名を推定
 // ----------------------------------------
@@ -14,5 +16,5 @@ export function resolveRepo(issue: LinearIssue, repoNames: string[]): string {
     if (text.includes(name) || text.includes(short)) return name;
   }
 
-  return repoNames[0];
+  return repoNames[DEFAULT_REPO_INDEX];
 }

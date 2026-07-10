@@ -18,15 +18,21 @@ sequenceDiagram
     autonumber
     actor Human
     participant Slack
-    participant App as fly.io App (NestJS)
+    participant SlackInt as Slack Integration (Chat SDK)
+    participant Langfuse
+    participant App as App Core (NestJS)
     participant Linear
     participant Claude as Claude Agent SDK
     participant GitHub
 
     Human->>Slack: Posts bug report message
-    Slack->>App: Slack Events API webhook (message event)
-    App->>Slack: Ask clarifying questions (thread reply)
+    Slack->>SlackInt: Slack Events API webhook (message event)
+    SlackInt->>Langfuse: Fetch system prompt (or fallback)
+    Langfuse-->>SlackInt: Return system prompt
+    SlackInt->>Slack: Ask clarifying questions (thread reply)
+    SlackInt->>Langfuse: Log triage trace
     Human->>Slack: Answers clarifying questions
+    SlackInt->>App: Dispatch triage-ready report
     App->>Linear: Create Issue (label: agent, state: Todo)
     Linear->>App: Linear webhook (issue created)
     App->>App: Verify label == agent && state == Todo
@@ -50,8 +56,14 @@ sequenceDiagram
 #### Slack Integration (Bug Intake & Clarification)
 
 - Receives bug reports via Slack Events API (\`message\` events in a designated channel).
+- Powered by the **Chat SDK** (\`chat\` and \`@chat-adapter/slack\` / \`@chat-adapter/state-memory\`) to abstract Slack API plumbing (URL verification challenges, signature verification, and event routing) into high-level event listeners like \`onNewMention\` and \`onSubscribedMessage\`.
+- Manages thread-based conversational history using the Chat SDK state adapter to support multi-turn triage interactions.
 - The app replies in-thread to ask structured clarifying questions (reproduction steps, environment, expected vs actual behaviour).
-- Once clarification is complete, the app creates a Linear issue with the refined description.
+- The triage clarification loop is orchestrated by a **Mastra Workflow** (`bugTriageWorkflow`) registered in `MastraProvider`. The workflow implements three branches:
+  - **Complete report**: Creates a Linear issue, posts the URL to Slack, and unsubscribes.
+  - **Incomplete with clarifying question**: Posts the question to Slack (does not unsubscribe; awaits user response).
+  - **Max rounds exhausted or no question available**: Posts a fallback message and unsubscribes.
+- Once clarification is complete (or max rounds exceeded), the workflow terminates and Slack integration awaits the next message in the thread.
 - Uses \`SLACK_BOT_TOKEN\` and \`SLACK_SIGNING_SECRET\` environment variables.
 
 #### Linear (Issue Tracking)
@@ -74,6 +86,12 @@ sequenceDiagram
 - Claude pushes the branch and opens a PR linking back to the Linear issue.
 - Target repository is resolved from issue text against configured REPOS.
 
+#### Langfuse (Prompt Management & Observability)
+
+- Stores and versions LLM prompt templates (such as \`bug-triage-system\`) to allow prompt refinement without app redeployment.
+- Retrieves and compiles prompt templates dynamically at runtime, falling back to a local default prompt if the API is slow or unreachable.
+- Instruments and traces LLM execution, linking prompt versions to telemetry to monitor agent performance, latency, and costs.
+
 ### Failure Modes
 
 | Failure                   | Behaviour                                              |
@@ -91,6 +109,12 @@ sequenceDiagram
 - Always clean up the git worktree in a \`finally\` block regardless of success or failure.
 - Verify webhook signatures (HMAC-SHA256) for both Slack and Linear before processing any payload.
 - Scope Claude's allowedTools to the minimum set needed.
+- Make every Mastra \`.branch([...])\` set of conditions mutually exclusive **and** collectively exhaustive so exactly one branch runs per turn. Express the final fallback as the explicit negation of the other conditions (e.g. \`!isComplete && !hasQuestionAndRounds\`), not as an always-true predicate.
+- Always inspect the result of \`run.start(...)\` for a Mastra workflow. A step failure does **not** reject the promise — the run resolves with \`result.status === "failed"\` and a \`result.error\` payload. On \`failed\`, raise/handle the error (report via the \`logger\` util per BE-003) and notify the reporter in-thread so they are never left without a response.
+- Route every LLM system/instruction prompt through the Langfuse util's fetch-with-local-fallback methods (e.g. \`langfuse.fetchTriagePrompt\`, \`fetchFormatPrompt\`, \`fetchTaskPrompt\`), and register each prompt in Langfuse under a name centralized in \`LANGFUSE_PROMPT_NAMES\` (\`src/constants/mastra.constants.ts\`) with a matching local fallback template.
+- Prefer having a Mastra workflow step delegate its LLM/business logic to a Query (read/classify) or Command (side-effect) rather than performing it inline — the step orchestrates, the Query/Command owns the call. This keeps steps at the Coordinator altitude per [BE-001](./BE-001-layer-architecture.md) (e.g. \`evaluateStep\` → \`EvaluateBugReportQuery\`, \`createIssueStep\` → \`CreateLinearIssueCommand\`).
+- A short, self-contained assessment/classification LLM call MAY be performed **inline** within a workflow step when it produces only data consumed by the same workflow run and introduces no reusable business rule (e.g. \`assessComplexityStep\` classifying issue difficulty via \`generateObject\`). When inlined it MUST still (a) fetch its prompt through the Langfuse fetch-with-local-fallback util under a \`LANGFUSE_PROMPT_NAMES\` name, and (b) catch failure, report via the \`logger\` util, and degrade to a safe default so the run is never blocked (per BE-003).
+- When an agent must consult local knowledge/reference files (e.g. the DDD domain docs under \`docs/domain/\*\`), give it read-only, directory-scoped access via Mastra's native \`Workspace\` + \`LocalFilesystem\` (\`@mastra/core/workspace\`): \`new Workspace({ filesystem: new LocalFilesystem({ basePath: <dir-constant>, readOnly: true }) })\` attached to the \`Agent\` via its \`workspace\` option, which auto-provides list/read/search tools jailed to \`basePath\`. Do **not** hand-roll a filesystem repository or custom \`createTool\` file tools for this. Instruct the agent (via its Langfuse prompt) to list/search first and read at most the 1–2 most relevant files (minimal reading). The directory MUST be a named constant ([GEN-001](./GEN-001-magic-number-and-status-management.md)); because such docs may be gitignored/auto-generated, ensure they ship in the deployed image and that the agent degrades gracefully (empty listing) when absent (per BE-003).
 
 ### Don't
 
@@ -98,6 +122,9 @@ sequenceDiagram
 - Do not share worktrees between concurrent issues.
 - Do not hardcode repository names or org slugs — keep them in \`repos.config.ts\`.
 - Do not process Linear webhooks if the issue lacks the \`agent\` label or is not in \`Todo\` state.
+- Do not use a catch-all / always-true condition as the fallback branch in a Mastra \`.branch([...])\`. Mastra evaluates **every** condition and runs **all** matching branches in parallel (it is not if/else-if/else), so an always-true fallback fires on every run alongside the real branch — causing duplicate side effects such as double Slack posts and an unintended \`unsubscribe\` (root cause of the bug-triage duplicate-response incident).
+- Do not pass a hardcoded prompt string directly to an LLM call (e.g. \`system: SOME_CONSTANT\` or an inline template). All prompts MUST be fetched from Langfuse with a local fallback so prompt edits do not require a redeploy and a fetch outage never hard-fails; local prompt constants may exist only as fallbacks.
+- Do not place reusable or side-effecting business logic (issue creation, Linear state transitions, repository writes, anything reused elsewhere) directly inside a workflow step. Those belong in a Command or Query; only the narrow inline-assessment allowance above is exempt.
 
 ## Consequences
 

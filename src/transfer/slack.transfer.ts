@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { Chat, type Thread, type Message } from "chat";
 import { createSlackAdapter } from "@chat-adapter/slack";
 import { createMemoryState } from "@chat-adapter/state-memory";
-import { SLACK_BOT_USERNAME } from "@/slack-bug-intake/slack-bug-intake.constants";
+import { SLACK_BOT_USERNAME } from "@/slack-triage/slack-triage.constants";
 
 type MentionHandler = (thread: Thread, message: Message) => Promise<void>;
 

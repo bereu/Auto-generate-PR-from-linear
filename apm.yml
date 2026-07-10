@@ -1,0 +1,10 @@
+name: auto-generate-code-from-linear
+version: 1.0.0
+description: APM project for auto-generate-code-from-linear
+author: sohei.eto
+dependencies:
+  apm:
+    - bereu/own-AI-agents.settings
+  mcp: []
+includes: auto
+scripts: {}

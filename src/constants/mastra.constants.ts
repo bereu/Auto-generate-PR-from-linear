@@ -1,0 +1,57 @@
+// Mastra agent + Workflow + Langfuse prompt identifiers.
+// Centralised here to satisfy GEN-001 (no magic strings in business logic).
+
+export const AGENT_NAMES = {
+  bugTriage: "bug-triage",
+  complexity: "complexity",
+  intentClassifier: "intent-classifier",
+  questionAnswer: "question-answer",
+  featureIntake: "feature-intake",
+} as const;
+
+export type AgentName = (typeof AGENT_NAMES)[keyof typeof AGENT_NAMES];
+
+export const AGENT_MODELS = {
+  bugTriage: "claude-haiku-4-5-20251001",
+  complexity: "claude-haiku-4-5-20251001",
+  intentClassifier: "claude-haiku-4-5-20251001",
+  questionAnswer: "claude-haiku-4-5-20251001",
+  featureIntake: "claude-haiku-4-5-20251001",
+} as const;
+
+export const WORKFLOW_NAMES = {
+  // Top-level intent router (formerly "bug-triage" — it now handles all intents).
+  triage: "triage",
+  question: "question-intake",
+  bugIntake: "bug-intake",
+  featureIntake: "feature-intake",
+} as const;
+
+export type WorkflowName = (typeof WORKFLOW_NAMES)[keyof typeof WORKFLOW_NAMES];
+
+export const WORKFLOW_STEP_IDS = {
+  classify: "classify-message",
+  answer: "answer-question",
+  evaluate: "evaluate-bug-report",
+  assessComplexity: "assess-complexity",
+  createIssue: "create-linear-issue",
+  ask: "ask-clarifying-question",
+  escalate: "escalate-triage-failure",
+} as const;
+
+export type WorkflowStepId = (typeof WORKFLOW_STEP_IDS)[keyof typeof WORKFLOW_STEP_IDS];
+
+export const LANGFUSE_PROMPT_NAMES = {
+  bugTriage: "bug-triage-system",
+  bugReportFormat: "bug-report-format-system",
+  complexity: "issue-complexity-system",
+  agentTask: "agent-task",
+  intentClassify: "intent-classify-system",
+  questionAnswer: "question-answer-system",
+  featureEvaluate: "feature-evaluate-system",
+  featureFormat: "feature-format-system",
+} as const;
+
+export type LangfusePromptName = (typeof LANGFUSE_PROMPT_NAMES)[keyof typeof LANGFUSE_PROMPT_NAMES];
+
+export const OBSERVABILITY_SERVICE_NAME = "slack-bug-triage" as const;

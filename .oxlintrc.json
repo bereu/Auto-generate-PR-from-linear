@@ -48,7 +48,15 @@
         "case": "kebabCase"
       }
     ],
+    "no-restricted-syntax": [
+      "error",
+      {
+        "message": "Don't declare enums. Please yse object literal. const Gender = {\n  MALE: 0,\n  FEMALE: 1,\n  ALL: 2,\n} as const;",
+        "selector": "TSEnumDeclaration"
+      }
+    ],
     "oxc/branches-sharing-code": "error",
+    "no-magic-numbers": "error",
     "no-duplicate-imports": "error",
     "no-duplicate-case": "error",
     "no-duplicate-keys": "error",
@@ -72,6 +80,44 @@
     "typescript/prefer-function-type": "error",
     "typescript/prefer-namespace-keyword": "error",
     "typescript/triple-slash-reference": "error",
-    "typescript/unbound-method": "error"
+    "typescript/unbound-method": "error",
+    "complexity": ["error", { "max": 5 }],
+    "max-depth": ["error", { "max": 5 }],
+    "max-params": ["error", { "max": 8 }],
+    "no-nested-ternary": "error",
+    "no-dupe-else-if": "error",
+    "typescript/no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
+    "import/no-duplicates": "error",
+    "max-lines": [
+      "error",
+      {
+        "max": 300,
+        "skipBlankLines": true,
+        "skipComments": true
+      }
+    ],
+    "max-lines-per-function": [
+      "error",
+      {
+        "max": 30,
+        "skipBlankLines": true,
+        "skipComments": true
+      }
+    ],
+    "typescript/member-ordering": [
+      "warn",
+      {
+        "default": ["field", "get", "constructor", "method", "signature"]
+      }
+    ],
+    "typescript/prefer-optional-chain": "error",
+    "typescript/prefer-nullish-coalescing": "error",
+    "prefer-const": "error"
   }
 }

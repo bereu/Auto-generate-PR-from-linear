@@ -1,0 +1,28 @@
+{
+  "PostToolUse": [
+    {
+      "matcher": "Write|Edit",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "npm run lint && npm run storybook --debug-webpack && npm run storybook --debug",
+          "statusMessage": "Validating ADR compliance with archgate... and lint ",
+          "timeout": 300
+        }
+      ],
+      "_apm_source": "own-AI-agents.settings"
+    }
+  ],
+  "Stop": [
+    {
+      "hooks": [
+        {
+          "type": "command",
+          "command": "npm run lint && npm run storybook --debug-webpack && npm run storybook --debug",
+          "statusMessage": "Running quality gates..."
+        }
+      ],
+      "_apm_source": "own-AI-agents.settings"
+    }
+  ]
+}
