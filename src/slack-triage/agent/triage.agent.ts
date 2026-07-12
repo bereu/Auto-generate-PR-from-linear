@@ -3,7 +3,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { Message, Thread } from "chat";
 import { langfuse } from "@/util/langfuse";
 import { logger } from "@/util/logger";
-import { buildMcpServersConfig } from "@/slack-triage/agent/mcp-servers";
+import { buildAgentToolsConfig } from "@/slack-triage/agent/agent-tools";
 import {
   TRIAGE_AGENT_MODEL,
   TRIAGE_MAX_TURNS,
@@ -13,8 +13,7 @@ import {
 // Tool-input log truncation window (mirrors the pattern in src/agent.ts).
 const LOG_TRUNCATE_START = 0;
 const LOG_TRUNCATE_END = 200;
-// Regex/array index constants (avoid inline magic numbers per GEN-001).
-const ISSUE_ID_CAPTURE_GROUP = 1;
+// Array index constants (avoid inline magic numbers per GEN-001).
 const ARRAY_FIRST_INDEX = 0;
 
 /**
@@ -39,15 +38,6 @@ interface ClaudeResultMessage {
 }
 
 /**
- * Tool result message containing MCP tool output.
- */
-interface ClaudeToolResultMessage {
-  type: string;
-  content?: string;
-  tool_name?: string;
-}
-
-/**
  * Content block from an assistant message.
  */
 interface ContentBlock {
@@ -64,6 +54,7 @@ interface AgentResponse {
   title?: string;
   description?: string;
   difficulty?: string;
+  issueId?: string;
 }
 
 /**
@@ -81,25 +72,24 @@ export interface TriageTurnOutcome {
 /**
  * TriageAgent: runs a single agentic Claude Agent SDK `query()` session per
  * Slack thread turn. Orchestrates intent classification, clarification, and
- * Linear issue creation via MCP.
+ * Linear issue creation via CLI skills.
  *
  * **Coordinator-layer responsibility (per BE-001):**
  * - Assemble the prompt from the thread's recent messages
- * - Run the query() session with configured MCP servers and tool scopes
+ * - Run the query() session with configured skills and tool scopes
  * - Parse the stream and detect the terminal result message
- * - Return a typed turn-outcome (action, message, issueUrl, etc.)
+ * - Return a typed turn-outcome (action, message, issueUrl, issueId, etc.)
  * - Any deterministic business guarantee (Linear label/state) is enforced by a
  *   subsequent Command in the Coordinator layer (reconciliation pattern).
  *
- * **MCP access:**
- * - Linear MCP: create, list, get (allowed)
- * - Slack MCP: search, read (allowed, optional, read/search only)
- * - Destructive/write tools: denied by hook + denylist (fail closed)
+ * **CLI/Skill access:**
+ * - Linear CLI (via use-linear skill): create, list, get (allowed)
+ * - Slack CLI (via use-slack skill): search, read (allowed, optional, read/search only)
+ * - Destructive/write commands: denied by PreToolUse hook (fail closed)
  */
 @Injectable()
 export class TriageAgent {
   private readonly jsonBlockRegex = /\{[\s\S]*\}/;
-  private readonly idRegex = /["']?id["']?\s*[:=]\s*["']?([A-Z]+-\d+)/;
 
   /**
    * Run a single triage turn: classify intent, ask clarifying question, or
@@ -112,11 +102,11 @@ export class TriageAgent {
     try {
       const prompt = this.buildTriagePrompt(thread.recentMessages);
       const systemPrompt = await langfuse.fetchTriageAgentPrompt();
-      const mcpConfig = buildMcpServersConfig();
+      const toolsConfig = buildAgentToolsConfig();
 
       logger.info(`[triage-agent] Starting triage session (max ${TRIAGE_MAX_TURNS} turns)`);
 
-      const streamData = await this.collectStreamMessages(prompt, systemPrompt, mcpConfig);
+      const streamData = await this.collectStreamMessages(prompt, systemPrompt, toolsConfig);
       const outcome = this.buildOutcomeFromStream(streamData);
 
       if (outcome.action === "error" && outcome.maxRoundsReached) {
@@ -150,19 +140,21 @@ export class TriageAgent {
   }
 
   /**
-   * Build query options from MCP config.
+   * Build query options from tools config.
    */
   private buildQueryOptions(
     systemPrompt: string,
-    mcpConfig: ReturnType<typeof buildMcpServersConfig>,
+    toolsConfig: ReturnType<typeof buildAgentToolsConfig>,
   ) {
     return {
       systemPrompt,
       model: TRIAGE_AGENT_MODEL,
-      mcpServers: mcpConfig.mcpServers,
-      allowedTools: mcpConfig.allowedTools,
-      disallowedTools: mcpConfig.disallowedTools,
-      hooks: mcpConfig.hooks,
+      cwd: process.cwd(),
+      settingSources: toolsConfig.settingSources,
+      skills: toolsConfig.skills,
+      allowedTools: toolsConfig.allowedTools,
+      disallowedTools: toolsConfig.disallowedTools,
+      hooks: toolsConfig.hooks,
       maxTurns: TRIAGE_MAX_TURNS,
     };
   }
@@ -176,17 +168,16 @@ export class TriageAgent {
   private async collectStreamMessages(
     prompt: string,
     systemPrompt: string,
-    mcpConfig: ReturnType<typeof buildMcpServersConfig>,
-  ): Promise<{ lastMessage: string; issueIds: string[]; result: ClaudeResultMessage | null }> {
+    toolsConfig: ReturnType<typeof buildAgentToolsConfig>,
+  ): Promise<{ lastMessage: string; result: ClaudeResultMessage | null }> {
     let lastMessage = "";
     let result: ClaudeResultMessage | null = null;
-    const issueIds: string[] = [];
 
     for await (const msg of query({
       prompt,
-      options: this.buildQueryOptions(systemPrompt, mcpConfig) as Record<string, unknown>,
+      options: this.buildQueryOptions(systemPrompt, toolsConfig) as Record<string, unknown>,
     })) {
-      this.processStreamMessage(msg, issueIds);
+      this.logMessage(msg);
       const streamMsg = msg as ClaudeStreamMessage;
       if (streamMsg.type === "assistant" && streamMsg.message?.content) {
         lastMessage = this.extractTextFromMessage(streamMsg.message.content);
@@ -196,19 +187,7 @@ export class TriageAgent {
       }
     }
 
-    return { lastMessage, issueIds, result };
-  }
-
-  /**
-   * Process a single stream message for logging and issue extraction.
-   */
-  private processStreamMessage(msg: unknown, issueIds: string[]): void {
-    this.logMessage(msg);
-    const toolResultMsg = msg as ClaudeToolResultMessage;
-    if (toolResultMsg.type === "tool_result") {
-      const issueId = this.extractIssueId(toolResultMsg);
-      if (issueId) issueIds.push(issueId);
-    }
+    return { lastMessage, result };
   }
 
   /**
@@ -216,7 +195,6 @@ export class TriageAgent {
    */
   private buildOutcomeFromStream(streamData: {
     lastMessage: string;
-    issueIds: string[];
     result: ClaudeResultMessage | null;
   }): TriageTurnOutcome {
     if (!streamData.result) {
@@ -232,7 +210,7 @@ export class TriageAgent {
       logger.info(`[triage-agent] Token usage: ${streamData.result.usage.total_tokens}`);
     }
 
-    return this.parseAgentResponse(streamData.lastMessage, streamData.issueIds);
+    return this.parseAgentResponse(streamData.lastMessage);
   }
 
   /**
@@ -246,34 +224,9 @@ export class TriageAgent {
   }
 
   /**
-   * Extract Linear issue ID from a tool result message.
-   */
-  private extractIssueId(msg: ClaudeToolResultMessage): string | null {
-    const toolName = msg.tool_name;
-    if (!toolName || !msg.content) return null;
-    if (!toolName.includes("linear") || !toolName.includes("create")) return null;
-    return this.extractIdFromContent(msg.content);
-  }
-
-  /**
-   * Extract issue ID from content string.
-   */
-  private extractIdFromContent(content: string): string | null {
-    try {
-      const parsed = JSON.parse(content) as Record<string, unknown>;
-      if (typeof parsed.id === "string") return parsed.id;
-      if (typeof parsed.issueId === "string") return parsed.issueId;
-    } catch {
-      const match = content.match(this.idRegex);
-      if (match) return match[ISSUE_ID_CAPTURE_GROUP];
-    }
-    return null;
-  }
-
-  /**
    * Parse the agent's JSON response.
    */
-  private parseAgentResponse(responseText: string, linearIssueIds: string[]): TriageTurnOutcome {
+  private parseAgentResponse(responseText: string): TriageTurnOutcome {
     if (!responseText) {
       logger.warn("[triage-agent] Agent produced no text response");
       return { action: "error", message: "Agent produced no response" };
@@ -285,7 +238,7 @@ export class TriageAgent {
       return { action: "error", message: "Agent response was not JSON" };
     }
 
-    return this.parseJsonAndBuildOutcome(jsonBlock, linearIssueIds);
+    return this.parseJsonAndBuildOutcome(jsonBlock);
   }
 
   /**
@@ -299,7 +252,7 @@ export class TriageAgent {
   /**
    * Parse JSON and build outcome.
    */
-  private parseJsonAndBuildOutcome(jsonBlock: string, linearIssueIds: string[]): TriageTurnOutcome {
+  private parseJsonAndBuildOutcome(jsonBlock: string): TriageTurnOutcome {
     try {
       const parsedData = JSON.parse(jsonBlock) as unknown;
       const parsed = parsedData as AgentResponse;
@@ -310,7 +263,7 @@ export class TriageAgent {
         return { action: "error", message: `Unknown action: ${action}` };
       }
 
-      return this.buildOutcomeForAction(action, parsed, linearIssueIds);
+      return this.buildOutcomeForAction(action, parsed);
     } catch (error) {
       logger.error("[triage-agent] Failed to parse agent response", {
         error: error instanceof Error ? error : new Error(String(error)),
@@ -333,11 +286,7 @@ export class TriageAgent {
   // Action dispatcher: branches map 1:1 to the agent's action types and read more
   // clearly inline than split across helpers (complexity 6 vs 5).
   // eslint-disable-next-line complexity
-  private buildOutcomeForAction(
-    action: string,
-    parsed: AgentResponse,
-    linearIssueIds: string[],
-  ): TriageTurnOutcome {
+  private buildOutcomeForAction(action: string, parsed: AgentResponse): TriageTurnOutcome {
     const message = parsed.message ?? "";
 
     if (action === "answered_question" || action === "asked_clarifying_question") {
@@ -348,7 +297,7 @@ export class TriageAgent {
     }
 
     if (action === "create_issue") {
-      return this.buildCreateIssueOutcome(message, parsed, linearIssueIds);
+      return this.buildCreateIssueOutcome(message, parsed);
     }
 
     return { action: "error", message: "Unexpected action result" };
@@ -360,12 +309,13 @@ export class TriageAgent {
   // Complexity here is entirely defensive null-coalescing while assembling the outcome
   // object; splitting it would not improve readability (complexity 6 vs 5).
   // eslint-disable-next-line complexity
-  private buildCreateIssueOutcome(
-    message: string,
-    parsed: AgentResponse,
-    linearIssueIds: string[],
-  ): TriageTurnOutcome {
-    const issueId = linearIssueIds[ARRAY_FIRST_INDEX] ?? null;
+  private buildCreateIssueOutcome(message: string, parsed: AgentResponse): TriageTurnOutcome {
+    const issueId = parsed.issueId ?? null;
+    if (!issueId) {
+      logger.warn(
+        "[triage-agent] create_issue action produced no issueId; reconciliation may skip",
+      );
+    }
     return {
       action: "created_issue",
       message: message ?? "Issue created",

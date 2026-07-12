@@ -230,8 +230,8 @@ describe("SlackBotCoordinator - Triage Actions", () => {
     expect(threadPostMock).toHaveBeenCalledWith("Here is the answer");
   });
 
-  it("Scenario 6: Agent MCP failure handling", async () => {
-    triageAgentMock.mockRejectedValue(new Error("MCP tool failed"));
+  it("Scenario 6: Agent CLI failure handling", async () => {
+    triageAgentMock.mockRejectedValue(new Error("CLI tool failed"));
     await runHandler();
     expect(threadPostMock).toHaveBeenCalled();
   });
