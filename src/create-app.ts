@@ -14,10 +14,13 @@ export function validateEnv(): void {
     "LINEAR_WEBHOOK_SECRET",
     "SLACK_BOT_TOKEN",
     "SLACK_SIGNING_SECRET",
+    "LINEAR_MCP_URL",
+    "LINEAR_MCP_TOKEN",
   ] as const;
-  // LANGFUSE_* and ROLLBAR_* are intentionally optional:
-  // - langfuse util falls back to local TRIAGE_SYSTEM_PROMPT when unset/unreachable
+  // LANGFUSE_*, ROLLBAR_*, and SLACK_MCP_* are intentionally optional:
+  // - langfuse util falls back to local TRIAGE_AGENT_SYSTEM_PROMPT when unset/unreachable
   // - rollbar util disables error reporting when ROLLBAR_ACCESS_TOKEN is unset
+  // - Slack MCP is read/search only and non-blocking (R3 mitigation): if unset, agent runs without duplicate-search
   const missing = required.filter((k) => !process.env[k]);
   if (missing.length > NO_MISSING) {
     logger.error(`❌ 環境変数が不足しています: ${missing.join(", ")}`);

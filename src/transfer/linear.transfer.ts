@@ -9,6 +9,7 @@ export interface RawLinearIssue {
   description: string | null;
   url: string;
   labels: string[];
+  state?: string;
 }
 
 @Injectable()
@@ -158,5 +159,66 @@ export class LinearTransfer {
 
     logger.info(`  📋 Linear: created issue "${params.title}"`);
     return { url: issue.url };
+  }
+
+  /**
+   * Fetch a Linear issue by ID. Used by the reconciliation Command to verify
+   * and enforce the agent label + Todo state.
+   *
+   * @param issueId Linear issue ID
+   * @returns RawLinearIssue with labels and state, or null if not found
+   */
+  async fetchIssueById(issueId: string): Promise<RawLinearIssue | null> {
+    try {
+      const issue = await this.client().issue(issueId);
+      if (!issue) return null;
+
+      const labelsConnection = await issue.labels();
+      const stateConnection = await issue.state;
+
+      return {
+        id: issue.id,
+        title: issue.title,
+        description: issue.description ?? null,
+        url: issue.url,
+        labels: labelsConnection.nodes.map((l) => l.name),
+        state: stateConnection?.name,
+      };
+    } catch (error) {
+      logger.warn(`[linear] Failed to fetch issue ${issueId}: ${(error as Error).message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Add a label to a Linear issue. Used by the reconciliation Command to enforce
+   * the agent label after issue creation.
+   *
+   * @param issueId Linear issue ID
+   * @param labelName Label name to add
+   */
+  async addLabel(issueId: string, labelName: string): Promise<void> {
+    const client = this.client();
+    const issue = await client.issue(issueId);
+    const team = await issue.team;
+    if (!team) throw new Error(`${SYSTEM_ERRORS.teamNotFound} for issue ${issueId}`);
+
+    // Resolve the label ID (create if not found)
+    const labelIds = await this.resolveLabelIds(team, [labelName]);
+    const NO_LABELS = 0;
+    if (labelIds.length === NO_LABELS) {
+      throw new Error(`Failed to resolve label "${labelName}"`);
+    }
+
+    // Get current labels
+    const currentLabelsConnection = await issue.labels();
+    const currentLabelIds = currentLabelsConnection.nodes.map((l) => l.id);
+
+    // Add new label to the list
+    const newLabelIds = [...currentLabelIds, ...labelIds];
+
+    // Update the issue
+    await client.updateIssue(issueId, { labelIds: newLabelIds });
+    logger.info(`  📋 Linear: added label "${labelName}" to ${issueId}`);
   }
 }

@@ -1,78 +1,160 @@
 import { Injectable, Inject, type OnModuleInit } from "@nestjs/common";
 import type { Request as ExpressRequest, Response as ExpressResponse } from "express";
 import type { Thread } from "chat";
-import { RequestContext } from "@mastra/core/request-context";
 import { SlackTransfer } from "@/transfer/slack.transfer";
-import { ClassifyMessageQuery } from "@/slack-triage/query/classify-message.query";
-import { AnswerQuestionQuery } from "@/slack-triage/query/answer-question.query";
-import { EvaluateBugReportQuery } from "@/slack-triage/query/evaluate-bug-report.query";
-import { EvaluateFeatureRequestQuery } from "@/slack-triage/query/evaluate-feature-request.query";
-import { CreateLinearIssueCommand } from "@/slack-triage/command/create-linear-issue.command";
-import { WORKFLOW_NAMES } from "@/constants/mastra.constants";
+import { TriageAgent } from "@/slack-triage/agent/triage.agent";
+import { ReconcileLinearIssueCommand } from "@/slack-triage/command/reconcile-linear-issue.command";
 import { classifyTriageError } from "@/slack-triage/triage-error";
-import { mastra } from "@/util/mastra";
 import { webhookAdapter } from "@/util/webhook-adapter";
 import { logger } from "@/util/logger";
+import {
+  buildIssueCreatedMessage,
+  buildMaxRoundsIssueCreatedMessage,
+} from "@/slack-triage/slack-triage.constants";
 
 @Injectable()
 export class SlackBotCoordinator implements OnModuleInit {
   constructor(
     @Inject(SlackTransfer) private readonly slackTransfer: SlackTransfer,
-    @Inject(ClassifyMessageQuery) private readonly classifyMessage: ClassifyMessageQuery,
-    @Inject(AnswerQuestionQuery) private readonly answerQuestion: AnswerQuestionQuery,
-    @Inject(EvaluateBugReportQuery) private readonly evaluateBugReport: EvaluateBugReportQuery,
-    @Inject(EvaluateFeatureRequestQuery)
-    private readonly evaluateFeatureRequest: EvaluateFeatureRequestQuery,
-    @Inject(CreateLinearIssueCommand) private readonly createLinearIssue: CreateLinearIssueCommand,
+    @Inject(TriageAgent) private readonly triageAgent: TriageAgent,
+    @Inject(ReconcileLinearIssueCommand)
+    private readonly reconcileLinearIssue: ReconcileLinearIssueCommand,
   ) {}
 
   onModuleInit(): void {
     this.slackTransfer.onNewMention(async (thread, _message) => {
       await thread.subscribe();
-      await this.handleIncoming(thread);
+      // Run triage asynchronously; don't block the Slack webhook response (3s limit)
+      this.handleIncoming(thread).catch((err) => {
+        logger.error("[slack-bot-coordinator] Unhandled error in handleIncoming", {
+          error: err instanceof Error ? err : new Error(String(err)),
+        });
+      });
     });
 
     this.slackTransfer.onSubscribedMessage(async (thread, _message) => {
-      await this.handleIncoming(thread);
+      // Run triage asynchronously; don't block the Slack webhook response (3s limit)
+      this.handleIncoming(thread).catch((err) => {
+        logger.error("[slack-bot-coordinator] Unhandled error in handleIncoming", {
+          error: err instanceof Error ? err : new Error(String(err)),
+        });
+      });
     });
   }
 
+  /**
+   * Handle an incoming Slack message: run the triage agent, interpret the outcome,
+   * post replies via Chat SDK, manage subscriptions, run reconciliation if needed.
+   *
+   * Per Slack Events API constraint, the handler must ack within 3 seconds; the actual
+   * triage runs asynchronously (see onModuleInit above).
+   *
+   * Coordinator responsibilities (per BE-001):
+   * 1. Assemble the prompt from the thread (delegated to TriageAgent.run)
+   * 2. Run the agent and act on the outcome
+   * 3. Post via Chat SDK (never MCP)
+   * 4. Manage subscribe/unsubscribe (Chat SDK)
+   * 5. Run the reconciliation Command to enforce the agent label + Todo state
+   */
   private async handleIncoming(thread: Thread): Promise<void> {
     try {
       await thread.refresh();
-      const requestContext = this.buildRequestContext(thread);
-
-      const workflow = mastra.getWorkflow(WORKFLOW_NAMES.triage);
-      const run = await workflow.createRun();
-      const result = await run.start({
-        inputData: {},
-        requestContext,
-      });
-
-      // Mastra does not throw on step failure — it resolves with a `failed`
-      // status and an `error` payload. Surface it so the catch block reports it
-      // (BE-003) and notifies the user, instead of silently succeeding.
-      if (result.status === "failed") {
-        throw result.error ?? new Error("Bug triage workflow returned a failed status");
-      }
+      const outcome = await this.triageAgent.run(thread);
+      await this.actOnTriageOutcome(thread, outcome);
     } catch (err) {
       await this.reportFailure(thread, err as Error);
     }
   }
 
-  private buildRequestContext(
+  /**
+   * Act on the triage outcome: post messages, manage subscriptions, reconcile issues.
+   */
+  private async actOnTriageOutcome(
     thread: Thread,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ): RequestContext<any> {
-    return new RequestContext([
-      ["thread", thread],
-      ["classifyMessage", this.classifyMessage],
-      ["answerQuestion", this.answerQuestion],
-      ["evaluateBugReport", this.evaluateBugReport],
-      ["evaluateFeatureRequest", this.evaluateFeatureRequest],
-      ["createLinearIssue", this.createLinearIssue],
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ] as any);
+    outcome: Awaited<ReturnType<typeof this.triageAgent.run>>,
+  ): Promise<void> {
+    switch (outcome.action) {
+      case "answered_question":
+        await this.handleAnsweredQuestion(thread, outcome);
+        break;
+      case "asked_clarifying_question":
+        await this.handleClarifyingQuestion(thread, outcome);
+        break;
+      case "created_issue":
+        await this.handleCreatedIssue(thread, outcome);
+        break;
+      case "error":
+        await this.handleTriageError(thread, outcome);
+        break;
+      default:
+        logger.warn("[slack-bot-coordinator] Unknown action in triage outcome");
+    }
+  }
+
+  /**
+   * Handle answered_question outcome: post and stay subscribed.
+   */
+  private async handleAnsweredQuestion(
+    thread: Thread,
+    outcome: Awaited<ReturnType<typeof this.triageAgent.run>>,
+  ): Promise<void> {
+    await thread.post(outcome.message);
+    logger.info("[slack-bot-coordinator] Answer posted; thread remains subscribed");
+  }
+
+  /**
+   * Handle asked_clarifying_question outcome: post question and stay subscribed.
+   */
+  private async handleClarifyingQuestion(
+    thread: Thread,
+    outcome: Awaited<ReturnType<typeof this.triageAgent.run>>,
+  ): Promise<void> {
+    await thread.post(outcome.message);
+    logger.info("[slack-bot-coordinator] Clarifying question posted; awaiting response");
+  }
+
+  /**
+   * Handle created_issue outcome: reconcile, post, and unsubscribe.
+   */
+  private async handleCreatedIssue(
+    thread: Thread,
+    outcome: Awaited<ReturnType<typeof this.triageAgent.run>>,
+  ): Promise<void> {
+    if (!outcome.issueId) {
+      return;
+    }
+
+    try {
+      await this.reconcileLinearIssue.execute(outcome.issueId);
+    } catch (reconcileErr) {
+      logger.error("[slack-bot-coordinator] Reconciliation failed", {
+        error: reconcileErr instanceof Error ? reconcileErr : new Error(String(reconcileErr)),
+      });
+    }
+
+    const message = buildIssueCreatedMessage(outcome.issueUrl ?? "");
+    await thread.post(message);
+    await thread.unsubscribe();
+    logger.info(
+      `[slack-bot-coordinator] Issue ${outcome.issueId} created and reconciled; thread unsubscribed`,
+    );
+  }
+
+  /**
+   * Handle error outcome: check if max rounds or real error.
+   */
+  private async handleTriageError(
+    thread: Thread,
+    outcome: Awaited<ReturnType<typeof this.triageAgent.run>>,
+  ): Promise<void> {
+    if (outcome.maxRoundsReached) {
+      const message = buildMaxRoundsIssueCreatedMessage(outcome.issueUrl ?? "");
+      await thread.post(message);
+      await thread.unsubscribe();
+      logger.warn("[slack-bot-coordinator] Max clarification rounds reached; thread unsubscribed");
+    } else {
+      throw new Error(outcome.message);
+    }
   }
 
   /**

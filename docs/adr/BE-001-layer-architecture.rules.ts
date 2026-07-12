@@ -23,8 +23,9 @@ export default {
         }
       },
     },
-    "coordinator-must-use-query-and-command": {
-      description: "Coordinator must import at least one Query and one Command (ADR BE-001).",
+    "coordinator-must-orchestrate": {
+      description:
+        "Coordinator must orchestrate at least two participants — a Query, a Command, or a Claude Agent SDK agent session (*.agent) — and at least one must be a Query or Command (ADR BE-001).",
       check: async (ctx: {
         scopedFiles: string | any[];
         glob: (arg0: string) => any;
@@ -40,11 +41,15 @@ export default {
           const content = await ctx.readFile(file);
           const hasQuery = /from\s+["'][^"']*\.query["']/.test(content);
           const hasCommand = /from\s+["'][^"']*\.command["']/.test(content);
+          const hasAgent = /from\s+["'][^"']*\.agent["']/.test(content);
 
-          if (!hasQuery || !hasCommand) {
+          const participantCount = [hasQuery, hasCommand, hasAgent].filter(Boolean).length;
+          const hasLogicLayer = hasQuery || hasCommand;
+
+          if (participantCount < 2 || !hasLogicLayer) {
             ctx.report.violation({
               message:
-                "Coordinator must import at least one Query (*.query) and one Command (*.command) (ADR BE-001). A coordinator that only wraps a single layer is unnecessary.",
+                "Coordinator must orchestrate at least two participants among a Query (*.query), a Command (*.command), or an agent session (*.agent), and at least one must be a Query or Command (ADR BE-001). A coordinator that only wraps a single layer is unnecessary.",
               file,
             });
           }
