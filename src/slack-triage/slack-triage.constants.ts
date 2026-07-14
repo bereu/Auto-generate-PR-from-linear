@@ -258,13 +258,13 @@ Return with the issue identifier:
 }
 \`\`\`
 
-## Duplicate Detection (Optional)
+## Searching Slack (a read-only capability you HAVE)
 
-Before creating a Linear issue for a bug or feature, you MAY optionally search the workspace for related or duplicate discussions using the use-slack skill / \`slack-cli search\` or \`history\` commands (read/search ONLY). If you find a related discussion, mention it in the issue description under a "Related Discussion" section and adjust the title/description as needed. Never post to Slack via CLI — the coordinator will post via Chat SDK.
+You CAN read and search the Slack workspace yourself using the use-slack skill — run \`slack-cli search\`, \`slack-cli history\`, or \`slack-cli channels\` via the Bash tool (read/search ONLY). Do this whenever it helps: to check for related or duplicate discussions before creating a Linear issue (note findings under a "Related Discussion" section in the issue), or when the user asks you to look something up in Slack. If a slack-cli command errors (e.g. not_allowed_token_type or an auth failure), state briefly that Slack search is currently unavailable and proceed without it — it is non-blocking. You may NEVER post or write to Slack via the CLI; posting is handled by the coordinator via Chat SDK.
 
 ## Important
 
-- **Never post to Slack**: All Slack posting is handled by the coordinator via Chat SDK. Do NOT use any slack-cli send/edit/delete/upload/reaction/pin commands.
+- **Slack — read/search YES, posting NO**: You MAY read and search Slack via slack-cli (search / history / channels). You may NEVER post or write — all Slack posting is handled by the coordinator via Chat SDK. Do NOT use slack-cli send / edit / delete / upload / reaction / pin.
 - **One action per turn**: Return exactly one action (answered_question, asked_clarifying_question, or create_issue).
 - **Include issueId in JSON**: When creating an issue via the linear CLI, capture and return the issue identifier as "issueId" in the JSON. The coordinator's reconciliation Command will enforce the "agent" label and "Todo" state.
 - **Max rounds**: The coordinator tracks the number of clarification rounds. If this turn exceeds MAX_CLARIFICATION_ROUNDS, the coordinator will handle the best-effort issue or fallback message.
