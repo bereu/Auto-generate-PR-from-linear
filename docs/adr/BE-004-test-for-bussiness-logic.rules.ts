@@ -18,6 +18,9 @@ export default {
           /\.coordinator\.(test|spec)\.ts$/i,
           /\.query\.(test|spec)\.ts$/i,
           /\.command\.(test|spec)\.ts$/i,
+          // Agent layer: Claude Agent SDK sessions (*.agent.ts) carry security-critical
+          // business logic (e.g. tool deny-hooks); their tests are permitted (ADR BE-004).
+          /\.agent\.(test|spec)\.ts$/i,
         ];
 
         // Define forbidden test layer patterns
@@ -51,7 +54,7 @@ export default {
           if (!isAllowed && !forbiddenPatterns.some((f) => f.pattern.test(fileName))) {
             // Generic test file that doesn't follow layer naming
             ctx.report.violation({
-              message: `Test files must be explicitly named for the layer being tested (ADR BE-004). Use *.coordinator.test.ts, *.query.test.ts, or *.command.test.ts. Other layers must not have tests.`,
+              message: `Test files must be explicitly named for the layer being tested (ADR BE-004). Use *.coordinator.test.ts, *.query.test.ts, *.command.test.ts, or *.agent.test.ts. Other layers must not have tests.`,
               file,
             });
           }

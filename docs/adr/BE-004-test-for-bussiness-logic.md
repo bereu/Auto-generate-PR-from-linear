@@ -9,7 +9,7 @@ rules: true
 
 ## Context
 
-To ensure the reliability and correctness of our application, we must have an automated way to verify our business logic. As the application scales, manual testing becomes prone to human error and inefficiency. The core logic of our backend resides primarily in three layers: coordinator, query, and command. We need a definitive standard for testing these layers.
+To ensure the reliability and correctness of our application, we must have an automated way to verify our business logic. As the application scales, manual testing becomes prone to human error and inefficiency. The core logic of our backend resides primarily in these business-logic layers: coordinator, query, command, and the Claude Agent SDK agent layer. Agents now carry security-critical business logic (e.g. tool deny-hooks that fail closed), so they must be unit-tested like the other business-logic layers. We need a definitive standard for testing these layers.
 
 ## Decision
 
@@ -18,22 +18,25 @@ To ensure the reliability and correctness of our application, we must have an au
    - **Coordinator** Layer
    - **Query** Layer
    - **Command** Layer
+   - **Agent** Layer (Claude Agent SDK `*.agent.ts` sessions and their tool-access configuration; test files named `*.agent.test.ts`)
 3. We write test files to `server/test`.
 
 ## Do's and Don'ts
 
 ### Do
 
-- Do write unit tests **ONLY** for: **Coordinator**, **Query**, and **Command** layers.
+- Do write unit tests **ONLY** for: **Coordinator**, **Query**, **Command**, and **Agent** layers.
 - Do write unit tests that cover the core behavior, edge cases, and expected failures within these three layers.
 - Do use descriptive test names that clearly explain the business rule being verified.
 - Do integrate test files in `server/test` directory alongside the layer files.
 
 ### Don't
 
-- **Don't write test files for any other layers** (Repository, DataSource, Transfer, etc.). Tests are ONLY for Coordinator, Query, and Command.
+- **Don't write test files for any other layers** (Repository, DataSource, Transfer, etc.). Tests are ONLY for Coordinator, Query, Command, and Agent.
 - Don't skip writing unit tests for business logic under the pretext of deadline pressure.
 - Don't tightly couple unit tests to implementation details; focus on testing inputs and expected outputs/behavior.
+- Don't treat a passing `npm test` as sufficient. The vitest/esbuild runner strips types, so type-incorrect tests pass silently and can hide real defects (a fail-open security hook and 39 type errors once passed a green suite). Tests MUST also pass `npx tsc --noEmit` as a required gate.
+- Don't stub SDK/library callbacks with invented shapes. Mocks and hook handlers MUST match the real exported types — e.g. call a Claude Agent SDK PreToolUse hook with an actual `PreToolUseHookInput` and assert on its returned `permissionDecision`, never an assumed `(toolName, input)` signature (see [ARCH-001](./ARCH-001-production-architecture.md)).
 - Don't mock bottom layer. ex: when testing Query, Repository should not be mocked.
 - Don't create test files for infrastructure or data access layers.
 

@@ -96,39 +96,32 @@ sequenceDiagram
         }
       }
       ```
-    - **Mastra Workflows as orchestration**: A Mastra Workflow (`createWorkflow` / `createStep`) used to orchestrate a flow **IS** a Coordinator-layer construct and is governed by the same rules. Its steps MUST call the existing **Query** and **Command** layers and MUST NOT reimplement business or side-effect logic. Because workflow steps are module-scope functions that run **outside** NestJS dependency injection, all runtime dependencies (injected Query/Command instances, request-scoped objects such as a Chat SDK `thread`) MUST be passed per-run via Mastra `RequestContext`. `RequestContext` is a typed **Map-like** container: construct it from `[key, value]` tuples and read values inside steps with `.get("key")` — never from a plain object literal and never via property access or an unsafe cast. See `src/slack-bug-intake/workflow/bug-triage.workflow.ts` and `src/slack-bug-intake/coordinator/slack-bot.coordinator.ts`.
-      - **Good** (deps via `RequestContext` tuples; steps call Query/Command):
+    - **Claude Agent SDK agentic session as orchestration**: A Claude Agent SDK `query()` session used to orchestrate a flow (e.g. the Slack triage agent) **IS** a Coordinator-layer construct and is governed by the same rules. The Coordinator owns the session: it assembles the prompt from request-scoped inputs (e.g. a Chat SDK `thread`'s recent messages), configures the agent's tools, runs the session, and acts on the outcome. This replaces the previous Mastra Workflow orchestration.
+      - **Side-effects via MCP tools are permitted inside the agentic Coordinator** (e.g. the agent creating a Linear issue via the Linear MCP server), because the agent's tool use is itself the orchestration. **However, any deterministic business guarantee — especially an invariant another system depends on — MUST NOT be left solely to the LLM.** It MUST be enforced by a **Command** or **Query** after the fact. The canonical example: the triage agent creates a Linear issue via MCP, then a **reconciliation Command** over `LinearTransfer` verifies and enforces the `agent` label and `Todo` state that gates the downstream Linear webhook (see [ARCH-001](./ARCH-001-production-architecture.md)).
+      - **Good** (Coordinator runs the agent; a Command guarantees the invariant):
 
         ```typescript
-        // Coordinator: inject per-run deps as [key, value] tuples
-        const requestContext = new RequestContext<BugTriageRuntimeContext>([
-          ["thread", thread],
-          ["evaluateBugReport", this.evaluateBugReport], // Query
-          ["createLinearIssue", this.createLinearIssue], // Command
-        ]);
-        await run.start({ inputData, requestContext });
-
-        // Step: read deps with .get(), delegate to Query/Command
-        execute: async ({ requestContext }) => {
-          const evaluateBugReport = requestContext.get("evaluateBugReport");
-          return evaluateBugReport.execute(/* ... */);
-        };
+        // Coordinator: build prompt from request-scoped input, run scoped agent
+        const outcome = await this.triageAgent.run(thread.recentMessages); // creates issue via Linear MCP
+        if (outcome.issueCreated) {
+          await this.reconcileLinearIssue.execute(outcome.issueId); // Command enforces label=agent + state=Todo
+          await thread.post(outcome.message); // Slack I/O via Chat SDK
+          await thread.unsubscribe();
+        }
         ```
 
-      - **Bad** (object literal + property access; logic inlined in the step):
+      - **Bad** (relying on the LLM alone for a deterministic invariant):
         ```typescript
-        const requestContext = new RequestContext({ thread, createLinearIssue }); // ✗ not Map-like
-        execute: async ({ requestContext }) => {
-          const { thread } = requestContext as BugTriageRuntimeContext; // ✗ unsafe cast
-          await linearClient.issues.create(/* ... */); // ✗ side-effect logic belongs in a Command
-        };
+        // ✗ trusts the model to always set label=agent + state=Todo — downstream webhook silently breaks when it doesn't
+        await this.triageAgent.run(thread.recentMessages);
+        // ✗ no reconciliation Command; no deterministic guarantee
         ```
 
 3.  **Query** (Read-only): Data retrieval.
 4.  **Command** (Write-only): Data modification.
 5.  **Repository**: Aggregates data for domain-unit access. Accesses DataSource and Transfer.
 6.  **DataSource**: 1:1 mapping to database tables (RDB).
-7.  **Transfer**: Wrapper for accessing **business** external services (e.g., Firebase, Slack, Linear, GitHub). It is accessed by the Repository layer and handles the communication and data mapping to/from external services. The Transfer layer is **only** for business external services that a Repository orchestrates to reconstruct Domain objects. It is **not** the home for cross-cutting infrastructure clients — observability/tracing, prompt management, and agent frameworks (e.g., Langfuse, Mastra) belong in `src/util/` as singletons even though they call external APIs (see `GEN-002-project-folder-structure.md`).
+7.  **Transfer**: Wrapper for accessing **business** external services (e.g., Firebase, Slack, Linear, GitHub). It is accessed by the Repository layer and handles the communication and data mapping to/from external services. The Transfer layer is **only** for business external services that a Repository orchestrates to reconstruct Domain objects. It is **not** the home for cross-cutting infrastructure clients — observability/tracing and prompt management (e.g., Langfuse) belong in `src/util/` as singletons even though they call external APIs (see `GEN-002-project-folder-structure.md`).
 
 ### Naming Convention
 
@@ -147,9 +140,10 @@ We prioritize naming that reflects **business logic** and domain language over t
 - Use the **Command** layer for all write/modification logic.
 - **Always return Domain objects** from both Query and Command layers.
 - Keep each function small with a single responsibility.
-- Place cross-cutting infrastructure clients (logging, tracing/observability, prompt management, agent frameworks) in `src/util/` as singletons; any layer may reference them directly.
-- Treat a Mastra Workflow (`createWorkflow` / `createStep`) as Coordinator-layer orchestration: have its steps delegate to the existing **Query** and **Command** layers.
-- Pass all per-run dependencies (Query/Command instances, request-scoped objects such as a Chat SDK `thread`) into workflow steps via Mastra `RequestContext`, constructed from `[key, value]` tuples and read inside steps with `.get("key")`.
+- Place cross-cutting infrastructure clients (logging, tracing/observability, prompt management) in `src/util/` as singletons; any layer may reference them directly.
+- Treat a Claude Agent SDK `query()` session as Coordinator-layer orchestration: the Coordinator assembles the prompt from request-scoped inputs, configures scoped agent tools, runs the session, and acts on the outcome.
+- After an agent performs a side-effect via an MCP tool, enforce any deterministic business guarantee with a **Command** or **Query** (e.g. a reconciliation Command that sets the `agent` label + `Todo` state a downstream system depends on).
+- Scope the agent's MCP tool access to least-privilege (`allowedTools` allowlist, `disallowedTools` denylist, and a `PreToolUse` deny-hook for destructive tools).
 
 ### Don't
 
@@ -157,9 +151,10 @@ We prioritize naming that reflects **business logic** and domain language over t
 - Access the **DataSource**, **Repository**, or **Transfer** directly from the **Controller**.
 - Access the RDB from any layer other than **Repository** or **DataSource**.
 - Perform write operations within the **Query** layer.
-- Reimplement business or side-effect logic inside a Mastra workflow step; the step MUST call a **Command** or **Query** instead.
-- Construct Mastra `RequestContext` from a plain object literal, or read step dependencies via property access or an unsafe cast (`requestContext as SomeType`); use tuple construction and `.get("key")`.
-- Route observability, prompt-management, or agent-framework clients through the **Transfer** layer just because they call an external API. Transfer is reserved for business external services accessed by a Repository to reconstruct Domain objects; cross-cutting infrastructure clients belong in `src/util/`.
+- Rely on an agent (LLM) or an MCP tool call alone to satisfy a deterministic business invariant that another system depends on; that guarantee MUST be owned by a **Command** or **Query**.
+- Grant an agentic `query()` session unscoped MCP tool access; always set `allowedTools` and deny destructive tools.
+- Perform Slack **I/O** (inbound webhook, posting, subscribe/unsubscribe) for the triage flow through anything other than the Chat SDK bot-token integration. The Slack MCP is permitted for **read/search only** (e.g. duplicate-discussion lookup) with all write/post tools denied; never allowlist a Slack write tool or route Slack posting through MCP (it runs as a user, not the bot).
+- Route observability or prompt-management clients through the **Transfer** layer just because they call an external API. Transfer is reserved for business external services accessed by a Repository to reconstruct Domain objects; cross-cutting infrastructure clients belong in `src/util/`.
 
 ## Consequences
 
@@ -185,6 +180,7 @@ This decision will be enforced through architectural reviews and automated linti
 ## References
 
 - [Project Folder Structure](./GEN-002-project-folder-structure.md) — where each layer's files live, and the `src/util/` singleton rule for cross-cutting infrastructure clients
+- [ARCH-001 — Production Architecture](./ARCH-001-production-architecture.md) — the Claude Agent SDK triage agent as a Coordinator-layer orchestration, and the Linear-issue label/state reconciliation Command
 - CQRS Pattern
 - Domain-Driven Design (Validation)
 - Clean Architecture
